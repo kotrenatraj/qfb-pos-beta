@@ -74,6 +74,13 @@ td.r,th.r{text-align:right}
 .ml .i{flex:1}
 .ml .i small{color:#6b7280;display:block}
 .prev{max-width:110px;max-height:110px;border:1px solid #e5e7eb;border-radius:8px;display:block;margin:4px 0 8px}
+.mform{background:#eff6ff;border-radius:10px;padding:12px;margin:8px 0 14px}
+.mrow{display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:start}
+.mrow input{margin-bottom:0}
+.mrow .btn{height:100%;min-height:40px}
+@media(max-width:600px){.mrow{grid-template-columns:1fr 110px}.mrow .btn{grid-column:1/-1}}
+details summary{cursor:pointer;color:#1d4ed8;margin:10px 0 4px;font-size:.9rem}
+#mEditBar{margin:8px 0 0}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;max-width:92vw;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;font-size:.92rem}
 #toast.show{opacity:1}#toast.err{background:#b91c1c}
 .cust{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-top:10px}
@@ -220,22 +227,36 @@ td.r,th.r{text-align:right}
 
     <div class="card">
       <h2>Menu Items</h2>
-      <button class="btn ok" data-act="newitem">➕ Add menu item</button>
-      <div id="mForm" style="display:none;background:#eff6ff;border-radius:10px;padding:12px;margin:10px 0">
-        <div class="two">
-          <div><label>Item name</label><input id="mName"></div>
-          <div><label>Category</label><input id="mCat" list="catList" placeholder="e.g. Beverages"><datalist id="catList"></datalist></div>
+      <div id="mForm" class="mform">
+        <div class="mrow">
+          <input id="mName" placeholder="Item name, e.g. Masala Dosa" autocomplete="off">
+          <input id="mPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Price ₹">
+          <button class="btn ok" id="mSave" data-act="saveitem">Add item</button>
         </div>
-        <div class="three">
-          <div><label>Price (₹)</label><input id="mPrice" type="number" min="0" step="0.01"></div>
-          <div><label>GST %</label><input id="mGst" type="number" min="0" step="0.5"></div>
-          <div><label>HSN / SAC</label><input id="mHsn" placeholder="996331"></div>
-        </div>
-        <label>Picture</label><input id="mImg" type="file" accept="image/*">
-        <img id="mPrev" class="prev" style="display:none">
-        <div class="btns"><button class="btn ok" data-act="saveitem">Save item</button><button class="btn" data-act="cancelitem">Cancel</button><button class="btn bad" data-act="rmimg">Remove picture</button></div>
+        <details id="mMore">
+          <summary>More options (category, GST %, picture)</summary>
+          <div class="three" style="margin-top:8px">
+            <div><label>Category</label><input id="mCat" list="catList" placeholder="e.g. Beverages"><datalist id="catList"></datalist></div>
+            <div><label>GST %</label><input id="mGst" type="number" min="0" step="0.5"></div>
+            <div><label>HSN / SAC</label><input id="mHsn"></div>
+          </div>
+          <label>Picture</label><input id="mImg" type="file" accept="image/*">
+          <img id="mPrev" class="prev" style="display:none">
+          <button class="btn sm bad" data-act="rmimg">Remove picture</button>
+        </details>
+        <div id="mEditBar" style="display:none">Editing <b id="mEditName"></b> &nbsp;<button class="btn sm" data-act="cancelitem">Cancel</button></div>
       </div>
-      <div id="mList" style="margin-top:10px"></div>
+
+      <h3>Import many items from Excel</h3>
+      <p class="muted" style="margin-top:0">Use an Excel (.xlsx, .xls) or CSV file. First row = column names: <b>Item Name, Price</b> (required) and optionally Category, GST %, HSN/SAC. Items with the same name are updated.</p>
+      <div class="btns" style="max-width:520px">
+        <button class="btn" data-act="mtemplate">⬇️ Download template</button>
+        <button class="btn pri" data-act="mimport">⬆️ Import from Excel…</button>
+      </div>
+      <input id="mFile" type="file" accept=".xlsx,.xls,.csv" style="display:none">
+      <div id="impPrev"></div>
+
+      <div id="mList" style="margin-top:12px"></div>
     </div>
 
     <div class="card">
@@ -278,7 +299,7 @@ var S={
   settings:Object.assign({company:'',address:'',phone:'',email:'',gstin:'',fssai:'',state:'',prefix:'INV-',nextNo:1,paper:'80',inclusive:false,defGst:5,seal:'',sign:'',folderName:''},load('settings',{})),
   menu:load('menu',null),
   invoices:load('invoices',[]),
-  bill:[],cat:'All',q:'',edit:null
+  bill:[],cat:'All',q:'',edit:null,mImg:'',imp:null
 };
 if(!S.menu){S.menu=sample();save('menu',S.menu);}
 
@@ -654,7 +675,7 @@ function fillSettings(){
   $('sState').value=s.state;$('sPrefix').value=s.prefix;$('sNext').value=s.nextNo;$('sPaper').value=s.paper;$('sDefGst').value=s.defGst;$('sIncl').checked=!!s.inclusive;
   $('folderName').textContent=s.folderName||'not chosen (downloads folder will be used)';
   setPrev('sealPrev',s.seal);setPrev('signPrev',s.sign);
-  $('paper').value=s.paper;$('coName').textContent=s.company||'Restaurant Billing';
+  $('paper').value=s.paper;if($('mGst'))$('mGst').placeholder='Default '+s.defGst+'%';$('coName').textContent=s.company||'Restaurant Billing';
 }
 function setPrev(id,src){var e=$(id);if(src){e.src=src;e.style.display='block';}else{e.removeAttribute('src');e.style.display='none';}}
 function saveSettingsForm(){
@@ -672,9 +693,63 @@ function renderMenuList(){
     return '<div class="ml"><div class="t">'+tile(m)+'</div><div class="i"><b>'+esc(m.name)+'</b><small>'+esc(m.cat||'No category')+' • ₹'+money(m.price)+' • GST '+m.gst+'%'+(m.hsn?' • HSN '+esc(m.hsn):'')+'</small></div><button class="btn sm" data-act="edititem" data-id="'+m.id+'">Edit</button><button class="btn sm bad" data-act="delitem" data-id="'+m.id+'">Delete</button></div>';
   }).join(''):'<p class="muted">No menu items yet.</p>';
 }
-function openItemForm(it){
-  S.edit=it;$('mName').value=it.name;$('mCat').value=it.cat||'';$('mPrice').value=it.price;$('mGst').value=it.gst;$('mHsn').value=it.hsn||'';$('mImg').value='';
-  setPrev('mPrev',it.img);$('mForm').style.display='block';$('mName').focus();
+function resetForm(){
+  S.edit=null;S.mImg='';
+  $('mName').value='';$('mPrice').value='';$('mGst').value='';$('mHsn').value='';$('mImg').value='';
+  $('mGst').placeholder='Default '+S.settings.defGst+'%';$('mHsn').placeholder='996331';
+  setPrev('mPrev','');
+  $('mSave').textContent='Add item';$('mEditBar').style.display='none';
+}
+function loadForm(it){
+  S.edit=it;S.mImg=it.img||'';
+  $('mName').value=it.name;$('mPrice').value=it.price;$('mCat').value=it.cat||'';$('mGst').value=it.gst;$('mHsn').value=it.hsn||'';$('mImg').value='';
+  setPrev('mPrev',S.mImg);
+  $('mSave').textContent='Save changes';$('mEditName').textContent=it.name;$('mEditBar').style.display='block';$('mMore').open=true;
+  if($('mForm').scrollIntoView)$('mForm').scrollIntoView({behavior:'smooth',block:'center'});
+  $('mName').focus();
+}
+
+/* ---------- menu import ---------- */
+function nk(x){return String(x).toLowerCase().replace(/[^a-z0-9]/g,'');}
+var ALIAS={
+  name:['itemname','item','name','dish','dishname','product','menuitem'],
+  price:['price','rate','mrp','amount','cost','sellingprice','pricers','priceinr'],
+  cat:['category','type','group','section','categoryname'],
+  gst:['gst','gstrate','tax','taxrate'],
+  hsn:['hsnsac','hsn','sac','hsncode','hsnsaccode']
+};
+function parseMenuRows(rows){
+  var out={items:[],skipped:[]};
+  if(!rows||!rows.length){out.error='The file has no rows. Use the first sheet, with the column names in the first row.';return out;}
+  var keys={};Object.keys(rows[0]).forEach(function(k){keys[nk(k)]=k;});
+  function find(f){for(var i=0;i<ALIAS[f].length;i++){if(keys[ALIAS[f][i]]!==undefined)return keys[ALIAS[f][i]];}return null;}
+  var kn=find('name'),kp=find('price'),kc=find('cat'),kg=find('gst'),kh=find('hsn');
+  if(kn===null||kp===null){out.error='Could not find the "Item Name" and "Price" columns in the first row. Download the template to see the layout.';return out;}
+  rows.forEach(function(r,i){
+    var row=i+2,name=String(r[kn]==null?'':r[kn]).trim(),pv=r[kp];
+    if(!name&&(pv===''||pv==null))return;
+    if(!name){out.skipped.push('row '+row+': no item name');return;}
+    var price=typeof pv==='number'?pv:parseFloat(String(pv==null?'':pv).replace(/[^0-9.\-]/g,''));
+    if(isNaN(price)||price<0){out.skipped.push('row '+row+' ('+name+'): no valid price');return;}
+    var gst=null;
+    if(kg!==null){var gv=r[kg];if(gv!==''&&gv!=null){var g=typeof gv==='number'?gv:parseFloat(String(gv).replace(/[^0-9.]/g,''));if(!isNaN(g))gst=(typeof gv==='number'&&g>0&&g<1)?r2(g*100):g;}}
+    out.items.push({name:name,price:r2(price),cat:kc!==null?String(r[kc]==null?'':r[kc]).trim():'',gst:gst,hsn:kh!==null?String(r[kh]==null?'':r[kh]).trim():''});
+  });
+  return out;
+}
+function showImportPreview(res){
+  var box=$('impPrev');
+  var sk=res.skipped.length?'<div class="muted" style="margin-top:6px">Skipped: '+res.skipped.slice(0,5).map(esc).join('; ')+(res.skipped.length>5?'; …':'')+'</div>':'';
+  if(res.error){S.imp=null;box.innerHTML='<div class="cust"><b>'+esc(res.error)+'</b></div>';return;}
+  if(!res.items.length){S.imp=null;box.innerHTML='<div class="cust"><b>No usable rows found.</b>'+sk+'</div>';return;}
+  var have={};S.menu.forEach(function(m){have[m.name.toLowerCase()]=1;});
+  var nw=0,up=0,seen={};
+  res.items.forEach(function(x){var k=x.name.toLowerCase();if(have[k]||seen[k])up++;else nw++;seen[k]=1;});
+  S.imp=res;
+  var rows=res.items.slice(0,8).map(function(x){return [esc(x.name),esc(x.cat||''),'₹'+money(x.price),x.gst===null?'default':x.gst+'%'];});
+  box.innerHTML='<div class="cust"><b>Ready to import '+res.items.length+' item(s)</b><div class="muted">'+nw+' new &bull; '+up+' will update an existing item'+(res.skipped.length?' &bull; '+res.skipped.length+' row(s) skipped':'')+'</div>'+
+    '<div class="scroll">'+tbl(['Item','Category','Price','GST'],rows,['','','r','r'])+'</div>'+(res.items.length>8?'<p class="muted">…and '+(res.items.length-8)+' more</p>':'')+sk+
+    '<div class="btns"><button class="btn pri" data-act="mimportgo">Import '+res.items.length+' items</button><button class="btn" data-act="mimportcancel">Cancel</button></div></div>';
 }
 
 /* ---------- actions ---------- */
@@ -719,18 +794,48 @@ var A={
   },
   rmseal:function(){S.settings.seal='';save('settings',S.settings);fillSettings();},
   rmsign:function(){S.settings.sign='';save('settings',S.settings);fillSettings();},
-  newitem:function(){openItemForm({id:uid(),name:'',cat:'',price:'',gst:S.settings.defGst,hsn:'996331',img:'',isNew:true});},
-  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(m)openItemForm(Object.assign({},m));},
-  cancelitem:function(){S.edit=null;$('mForm').style.display='none';},
-  rmimg:function(){if(S.edit){S.edit.img='';setPrev('mPrev','');}},
+  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(m)loadForm(Object.assign({},m));},
+  cancelitem:function(){resetForm();$('mCat').value='';},
+  rmimg:function(){S.mImg='';setPrev('mPrev','');},
   saveitem:function(){
-    var e=S.edit;if(!e)return;
     var name=$('mName').value.trim(),price=parseFloat($('mPrice').value);
-    if(!name||isNaN(price)||price<0){toast('Enter an item name and a valid price.',true);return;}
-    e.name=name;e.cat=$('mCat').value.trim();e.price=price;e.gst=parseFloat($('mGst').value)||0;e.hsn=$('mHsn').value.trim();
-    var isNew=e.isNew;delete e.isNew;
-    if(isNew)S.menu.push(e);else S.menu=S.menu.map(function(m){return m.id===e.id?e:m;});
-    save('menu',S.menu);S.edit=null;$('mForm').style.display='none';renderMenuList();renderMenu();toast('Item saved.');
+    if(!name){toast('Type the item name.',true);$('mName').focus();return;}
+    if(isNaN(price)||price<0){toast('Type a price for '+name+'.',true);$('mPrice').focus();return;}
+    var gv=$('mGst').value.trim(),gst=gv===''?S.settings.defGst:(parseFloat(gv)||0);
+    var wasEdit=!!S.edit;
+    var item=wasEdit?S.menu.filter(function(m){return m.id===S.edit.id;})[0]:null;
+    if(!item){var low=name.toLowerCase();item=S.menu.filter(function(m){return m.name.toLowerCase()===low;})[0];}
+    var isNew=!item;
+    if(isNew){item={id:uid()};S.menu.push(item);}
+    if(wasEdit||isNew)item.name=name;
+    item.cat=$('mCat').value.trim();item.price=price;item.gst=gst;item.hsn=$('mHsn').value.trim()||'996331';
+    if(wasEdit||S.mImg)item.img=S.mImg;else if(isNew)item.img='';
+    save('menu',S.menu);renderMenuList();renderMenu();
+    resetForm();if(wasEdit)$('mCat').value='';
+    $('mName').focus();
+    toast((isNew?'Added ':'Updated ')+name+'.');
+  },
+  mtemplate:function(){
+    var wb=XLSX.utils.book_new();
+    var ws=XLSX.utils.aoa_to_sheet([['Item Name','Price','Category','GST %','HSN/SAC'],['Masala Dosa',80,'South Indian',5,'996331'],['Cold Coffee',90,'Beverages',5,'996331'],['Mineral Water 1L',20,'Beverages',18,'2201']]);
+    ws['!cols']=[{wch:28},{wch:10},{wch:18},{wch:8},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws,'Menu');
+    var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    download(new Blob([out],{type:'application/octet-stream'}),'Menu_Template.xlsx');
+  },
+  mimport:function(){$('mFile').click();},
+  mimportcancel:function(){S.imp=null;$('impPrev').innerHTML='';},
+  mimportgo:function(){
+    var imp=S.imp;if(!imp||!imp.items.length)return;
+    var idx={};S.menu.forEach(function(m){idx[m.name.toLowerCase()]=m;});
+    var added=0,updated=0;
+    imp.items.forEach(function(x){
+      var m=idx[x.name.toLowerCase()];
+      if(m){m.price=x.price;if(x.cat)m.cat=x.cat;if(x.gst!==null)m.gst=x.gst;if(x.hsn)m.hsn=x.hsn;updated++;}
+      else{var n={id:uid(),name:x.name,cat:x.cat||'',price:x.price,gst:x.gst!==null?x.gst:S.settings.defGst,hsn:x.hsn||'996331',img:''};S.menu.push(n);idx[x.name.toLowerCase()]=n;added++;}
+    });
+    save('menu',S.menu);S.imp=null;$('impPrev').innerHTML='';renderMenuList();renderMenu();
+    toast('Imported: '+added+' new, '+updated+' updated.');
   },
   delitem:function(t){
     if(!confirm('Delete this menu item?'))return;
@@ -759,7 +864,23 @@ function init(){
   ['cFrom','cTo','cQ'].forEach(function(id){$(id).addEventListener('input',renderCustomers);});
   $('sealFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.seal=await imgData(this.files[0],240,240,'contain');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
   $('signFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.sign=await imgData(this.files[0],300,120,'contain');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
-  $('mImg').addEventListener('change',async function(){if(this.files[0]&&S.edit){try{S.edit.img=await imgData(this.files[0],240,180,'cover');setPrev('mPrev',S.edit.img);}catch(e){toast('Could not read image.',true);}}});
+  $('mImg').addEventListener('change',async function(){if(this.files[0]){try{S.mImg=await imgData(this.files[0],240,180,'cover');setPrev('mPrev',S.mImg);}catch(e){toast('Could not read image.',true);}}});
+  $('mName').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if($('mPrice').value==='')$('mPrice').focus();else A.saveitem();}});
+  $('mPrice').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();A.saveitem();}});
+  $('mFile').addEventListener('change',function(){
+    var f=this.files[0];if(!f)return;var self=this;
+    var fr=new FileReader();
+    fr.onerror=function(){toast('Could not read that file.',true);self.value='';};
+    fr.onload=function(){
+      try{
+        var wb=XLSX.read(fr.result,{type:'array'});
+        var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:'',raw:true});
+        showImportPreview(parseMenuRows(rows));
+      }catch(e){toast('Could not read that file: '+e.message,true);}
+      self.value='';
+    };
+    fr.readAsArrayBuffer(f);
+  });
   $('restoreFile').addEventListener('change',function(){
     var f=this.files[0];if(!f)return;var self=this;
     var fr=new FileReader();fr.onload=function(){
@@ -773,10 +894,10 @@ function init(){
   });
   var today=ymd(new Date()),first=today.slice(0,8)+'01';
   $('rDate').value=today;$('rFrom').value=first;$('rTo').value=today;$('cFrom').value=first;$('cTo').value=today;
-  fillSettings();renderMenu();renderBill();renderCustList();renderMenuList();
+  fillSettings();renderMenu();renderBill();renderCustList();renderMenuList();resetForm();
 }
 
-var api={calc:calc,inWords:inWords,range:range,buildInvoicePdf:buildInvoicePdf,buildSummaryPdf:buildSummaryPdf,buildMasterBlob:buildMasterBlob,receiptHtml:receiptHtml,state:S};
+var api={parseMenuRows:parseMenuRows,calc:calc,inWords:inWords,range:range,buildInvoicePdf:buildInvoicePdf,buildSummaryPdf:buildSummaryPdf,buildMasterBlob:buildMasterBlob,receiptHtml:receiptHtml,state:S};
 if(typeof window!=='undefined')window.__rb=api;
 if(typeof document!=='undefined'&&document.getElementById('toast'))init();
 })();

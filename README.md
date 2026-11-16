@@ -12,7 +12,7 @@ A single-file restaurant billing app that runs in any modern browser, on desktop
 
 - **Billing** – tap menu tiles (with pictures), set quantities, add customer or company name, phone and GSTIN.
 - **Invoices** – saved as PDF and printed on 2-inch (58 mm), 3-inch (80 mm) or A4 paper, with CGST/SGST, round-off and amount in words.
-- **Settings** – company name, GSTIN, address, FSSAI number, seal and signature, menu items, invoice numbering, invoice folder.
+- **Settings** – company name, GSTIN, address, FSSAI number, seal and signature, menu items (quick add + Excel/CSV import), invoice numbering, invoice folder.
 - **Reports** – daily, weekly, monthly, yearly (April–March) and custom periods, with an Excel export.
 - **Customer Summary** – one summary bill PDF per customer or company for a date or period.
 - **Master Excel** – `Master_Invoices.xlsx` (invoices, GST rate-wise, items) for GST filing.
