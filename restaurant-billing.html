@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restaurant Billing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f4f6;color:#111827}
+.top{background:#1d4ed8;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px}
+.top h1{margin:0;font-size:1.2rem}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:transparent;color:#dbeafe;border:0;padding:8px 14px;border-radius:8px;font-size:.95rem;cursor:pointer}
+nav button.on{background:#fff;color:#1d4ed8;font-weight:600}
+main{max-width:1280px;margin:0 auto;padding:12px}
+section{display:none}
+section.on{display:block}
+.card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:12px}
+.card h2{margin:0 0 10px;font-size:1.1rem}
+.card h3{margin:14px 0 6px;font-size:1rem}
+.split{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:900px){.split{grid-template-columns:1fr 400px}}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem;margin-bottom:8px;background:#fff;font-family:inherit}
+input[type=checkbox]{width:auto;margin:0 8px 0 0}
+label{display:block;font-size:.85rem;color:#4b5563;margin-bottom:3px}
+label.inl{display:flex;align-items:center;margin:6px 0 10px;color:#111827;font-size:.95rem}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:600px){.three{grid-template-columns:1fr 1fr}}
+button{font-family:inherit}
+.btn{border:0;border-radius:8px;padding:10px 14px;font-size:.95rem;cursor:pointer;background:#e5e7eb;color:#111827}
+.btn.pri{background:#1d4ed8;color:#fff}
+.btn.ok{background:#16a34a;color:#fff}
+.btn.bad{background:#fee2e2;color:#b91c1c}
+.btn.sm{padding:5px 10px;font-size:.85rem}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btns .btn{flex:1;min-width:110px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+.chip{border:1px solid #d1d5db;background:#fff;border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
+.chip.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;max-height:62vh;overflow-y:auto}
+.tile{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;user-select:none}
+.tile:active{transform:scale(.97)}
+.tile:hover{border-color:#1d4ed8}
+.tile img,.tile .ph{width:100%;height:78px;object-fit:cover;display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700}
+.tn{padding:5px 7px 0;font-size:.85rem;font-weight:600;line-height:1.2;min-height:2.3em}
+.tp{padding:0 7px 7px;color:#1d4ed8;font-size:.85rem}
+.bl{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0}
+.bn small{display:block;color:#6b7280;font-size:.78rem}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:28px;height:28px;border:0;border-radius:6px;background:#e5e7eb;font-size:1rem;cursor:pointer}
+.ba{min-width:68px;text-align:right;font-weight:600}
+.x{border:0;background:transparent;color:#b91c1c;cursor:pointer;font-size:1rem}
+.tot div{display:flex;justify-content:space-between;padding:3px 0}
+.tot .g{font-size:1.3rem;font-weight:700;border-top:2px solid #111827;margin-top:4px;padding-top:6px}
+.muted{color:#6b7280;font-size:.9rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:7px 8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}
+th{background:#f9fafb;font-weight:600}
+td.r,th.r{text-align:right}
+.scroll{overflow-x:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
+.stat{background:#eff6ff;border-radius:10px;padding:10px}
+.stat b{display:block;font-size:1.3rem;color:#1d4ed8}
+.stat.g{background:#f0fdf4}.stat.g b{color:#16a34a}
+.stat.p{background:#faf5ff}.stat.p b{color:#9333ea}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.row>div{flex:1;min-width:130px}
+.ml{display:flex;align-items:center;gap:10px;border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin-bottom:8px}
+.ml .t{width:46px;height:46px;border-radius:8px;overflow:hidden;flex:none}
+.ml .t img,.ml .t .ph{width:100%;height:100%;object-fit:cover;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.ml .i{flex:1}
+.ml .i small{color:#6b7280;display:block}
+.prev{max-width:110px;max-height:110px;border:1px solid #e5e7eb;border-radius:8px;display:block;margin:4px 0 8px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;max-width:92vw;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;font-size:.92rem}
+#toast.show{opacity:1}#toast.err{background:#b91c1c}
+.cust{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-top:10px}
+.cust .h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cust .h b{font-size:1.05rem}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>🍽️ <span id="coName">Restaurant Billing</span></h1>
+  <nav id="nav">
+    <button class="on" data-act="tab" data-v="billing">Billing</button>
+    <button data-act="tab" data-v="invoices">Invoices</button>
+    <button data-act="tab" data-v="reports">Reports</button>
+    <button data-act="tab" data-v="customers">Customer Summary</button>
+    <button data-act="tab" data-v="settings">Settings</button>
+  </nav>
+</div>
+
+<main>
+<!-- BILLING -->
+<section id="t-billing" class="on">
+  <div class="split">
+    <div class="card">
+      <input id="q" type="search" placeholder="Search menu…">
+      <div id="cats" class="chips"></div>
+      <div id="menuGrid" class="grid"></div>
+    </div>
+    <div class="card">
+      <h2>Current Bill</h2>
+      <input id="cName" list="custList" placeholder="Customer / Company name (optional)">
+      <datalist id="custList"></datalist>
+      <div class="two"><input id="cPhone" placeholder="Phone"><input id="cGstin" placeholder="Customer GSTIN (optional)"></div>
+      <div id="billLines"></div>
+      <div id="billTotals" class="tot"></div>
+      <label for="paper" style="margin-top:10px">Paper size</label>
+      <select id="paper">
+        <option value="58">2 inch roll (58 mm)</option>
+        <option value="80">3 inch roll (80 mm)</option>
+        <option value="a4">A4 sheet</option>
+      </select>
+      <div class="btns">
+        <button class="btn pri" data-act="gen" data-print="1">🖨️ Save &amp; Print</button>
+        <button class="btn ok" data-act="gen">💾 Save PDF only</button>
+        <button class="btn" data-act="clear">Clear</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INVOICES -->
+<section id="t-invoices">
+  <div class="card">
+    <h2>All Invoices</h2>
+    <div class="row">
+      <div><label>Search</label><input id="iQ" placeholder="Invoice no. or customer"></div>
+      <div><label>From</label><input id="iFrom" type="date"></div>
+      <div><label>To</label><input id="iTo" type="date"></div>
+      <div><button class="btn ok" data-act="exportmaster" style="margin-bottom:8px">📥 Master Excel</button></div>
+    </div>
+    <div class="scroll"><div id="iOut"></div></div>
+  </div>
+</section>
+
+<!-- REPORTS -->
+<section id="t-reports">
+  <div class="card">
+    <h2>Sales Reports</h2>
+    <div class="row">
+      <div><label>Report</label>
+        <select id="rType">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly (Mon–Sun)</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly (Financial year Apr–Mar)</option>
+          <option value="custom">Custom period</option>
+        </select></div>
+      <div><label>Date</label><input id="rDate" type="date"></div>
+      <div id="rCustom" class="row" style="display:none;flex:2">
+        <div><label>From</label><input id="rFrom" type="date"></div>
+        <div><label>To</label><input id="rTo" type="date"></div>
+      </div>
+      <div><button class="btn ok" data-act="repxls" style="margin-bottom:8px">📥 Excel</button></div>
+    </div>
+    <div id="rOut"></div>
+  </div>
+</section>
+
+<!-- CUSTOMER SUMMARY -->
+<section id="t-customers">
+  <div class="card">
+    <h2>Customer / Company-wise Summary Bills</h2>
+    <p class="muted" style="margin-top:0">Pick one date or a period. Each customer gets a combined summary bill (PDF) listing their invoices.</p>
+    <div class="row">
+      <div><label>From</label><input id="cFrom" type="date"></div>
+      <div><label>To</label><input id="cTo" type="date"></div>
+      <div><label>Customer</label><input id="cQ" placeholder="Search customer"></div>
+    </div>
+    <div id="cOut"></div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="t-settings">
+  <div class="split" style="grid-template-columns:1fr">
+    <div class="card">
+      <h2>Company &amp; Invoice Details</h2>
+      <div class="two">
+        <div><label>Company / Restaurant name</label><input id="sCompany"></div>
+        <div><label>GST number (GSTIN)</label><input id="sGstin" placeholder="e.g. 29ABCDE1234F1Z5"></div>
+      </div>
+      <label>Company address</label><textarea id="sAddress" rows="3"></textarea>
+      <div class="three">
+        <div><label>Phone</label><input id="sPhone"></div>
+        <div><label>Email</label><input id="sEmail"></div>
+        <div><label>FSSAI no. (optional)</label><input id="sFssai"></div>
+      </div>
+      <div class="three">
+        <div><label>State (place of supply)</label><input id="sState" placeholder="e.g. Karnataka (29)"></div>
+        <div><label>Invoice prefix</label><input id="sPrefix"></div>
+        <div><label>Next invoice number</label><input id="sNext" type="number" min="1"></div>
+      </div>
+      <div class="three">
+        <div><label>Default paper</label>
+          <select id="sPaper"><option value="58">2 inch roll (58 mm)</option><option value="80">3 inch roll (80 mm)</option><option value="a4">A4 sheet</option></select></div>
+        <div><label>Default GST % for new items</label><input id="sDefGst" type="number" min="0" step="0.5"></div>
+      </div>
+      <label class="inl"><input type="checkbox" id="sIncl"> Menu prices already include GST</label>
+
+      <div class="two">
+        <div><label>Company seal (image)</label><input id="sealFile" type="file" accept="image/*"><img id="sealPrev" class="prev" style="display:none"><button class="btn sm bad" data-act="rmseal">Remove seal</button></div>
+        <div><label>Authorised signature (image)</label><input id="signFile" type="file" accept="image/*"><img id="signPrev" class="prev" style="display:none"><button class="btn sm bad" data-act="rmsign">Remove signature</button></div>
+      </div>
+
+      <h3>Invoice folder</h3>
+      <p class="muted" style="margin-top:0">PDFs and <b>Master_Invoices.xlsx</b> are saved here automatically (Chrome / Edge on a computer). On phones or other browsers, files go to the Downloads folder.</p>
+      <div class="row">
+        <div style="flex:none"><button class="btn" data-act="pickfolder">📁 Choose folder…</button></div>
+        <div><span class="muted">Current: <b id="folderName">not chosen</b></span></div>
+      </div>
+
+      <div class="btns"><button class="btn pri" data-act="savesettings">💾 Save settings</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Menu Items</h2>
+      <button class="btn ok" data-act="newitem">➕ Add menu item</button>
+      <div id="mForm" style="display:none;background:#eff6ff;border-radius:10px;padding:12px;margin:10px 0">
+        <div class="two">
+          <div><label>Item name</label><input id="mName"></div>
+          <div><label>Category</label><input id="mCat" list="catList" placeholder="e.g. Beverages"><datalist id="catList"></datalist></div>
+        </div>
+        <div class="three">
+          <div><label>Price (₹)</label><input id="mPrice" type="number" min="0" step="0.01"></div>
+          <div><label>GST %</label><input id="mGst" type="number" min="0" step="0.5"></div>
+          <div><label>HSN / SAC</label><input id="mHsn" placeholder="996331"></div>
+        </div>
+        <label>Picture</label><input id="mImg" type="file" accept="image/*">
+        <img id="mPrev" class="prev" style="display:none">
+        <div class="btns"><button class="btn ok" data-act="saveitem">Save item</button><button class="btn" data-act="cancelitem">Cancel</button><button class="btn bad" data-act="rmimg">Remove picture</button></div>
+      </div>
+      <div id="mList" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="muted" style="margin-top:0">Data lives in this browser. Take a backup now and then, or to move to another device.</p>
+      <div class="btns" style="max-width:420px"><button class="btn" data-act="backup">⬇️ Download backup</button><button class="btn" data-act="restore">⬆️ Restore backup</button></div>
+      <input id="restoreFile" type="file" accept=".json" style="display:none">
+    </div>
+  </div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function r2(n){return Math.round((n+Number.EPSILON)*100)/100;}
+function money(n){return Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function pad(n,l){n=String(n);while(n.length<l)n='0'+n;return n;}
+function ymd(d){d=new Date(d);return d.getFullYear()+'-'+pad(d.getMonth()+1,2)+'-'+pad(d.getDate(),2);}
+function dmy(d){d=new Date(d);return pad(d.getDate(),2)+'/'+pad(d.getMonth()+1,2)+'/'+d.getFullYear();}
+function dmyT(d){d=new Date(d);return dmy(d)+' '+pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
+function dmyKey(k){var p=k.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function safe(s){return String(s).replace(/[^A-Za-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');}
+
+/* ---------- storage ---------- */
+function load(k,def){try{var v=localStorage.getItem('rb_'+k);return v?JSON.parse(v):def;}catch(e){return def;}}
+function save(k,v){try{localStorage.setItem('rb_'+k,JSON.stringify(v));}catch(e){toast('Could not save data: '+e.message,true);}}
+function toast(msg,err){if(typeof document==='undefined'||!$('toast')){return;}var t=$('toast');t.textContent=msg;t.className='show'+(err?' err':'');clearTimeout(toast.t);toast.t=setTimeout(function(){t.className='';},5000);}
+
+function sample(){
+  var d=[['Masala Dosa','South Indian',80],['Idli (2 pcs)','South Indian',50],['Paneer Butter Masala','Main Course',220],['Butter Naan','Breads',40],['Veg Biryani','Rice',180],['Chicken Biryani','Rice',240],['Masala Chai','Beverages',20],['Cold Coffee','Beverages',90]];
+  return d.map(function(x){return {id:uid(),name:x[0],cat:x[1],price:x[2],gst:5,hsn:'996331',img:''};});
+}
+var S={
+  settings:Object.assign({company:'',address:'',phone:'',email:'',gstin:'',fssai:'',state:'',prefix:'INV-',nextNo:1,paper:'80',inclusive:false,defGst:5,seal:'',sign:'',folderName:''},load('settings',{})),
+  menu:load('menu',null),
+  invoices:load('invoices',[]),
+  bill:[],cat:'All',q:'',edit:null
+};
+if(!S.menu){S.menu=sample();save('menu',S.menu);}
+
+/* ---------- GST maths ---------- */
+function calc(items,inclusive){
+  var map={};
+  var lines=items.map(function(it){
+    var gross=it.price*it.qty,rate=+it.gst||0,tv,tx;
+    if(inclusive){tv=gross/(1+rate/100);tx=gross-tv;}else{tv=gross;tx=gross*rate/100;}
+    tv=r2(tv);tx=r2(tx);
+    var m=map[rate]||(map[rate]={rate:rate,taxable:0,tax:0});m.taxable+=tv;m.tax+=tx;
+    return {name:it.name,hsn:it.hsn||'',qty:it.qty,price:it.price,gst:rate,taxable:tv,tax:tx,amount:r2(gross)};
+  });
+  var rates=Object.keys(map).map(Number).sort(function(a,b){return a-b;}).map(function(k){
+    var m=map[k],t=r2(m.tax),c=r2(t/2);
+    return {rate:m.rate,taxable:r2(m.taxable),cgst:c,sgst:r2(t-c)};
+  });
+  var taxable=0,cgst=0,sgst=0;
+  rates.forEach(function(m){taxable+=m.taxable;cgst+=m.cgst;sgst+=m.sgst;});
+  taxable=r2(taxable);cgst=r2(cgst);sgst=r2(sgst);
+  var raw=r2(taxable+cgst+sgst),total=Math.round(raw);
+  return {lines:lines,rates:rates,taxable:taxable,cgst:cgst,sgst:sgst,tax:r2(cgst+sgst),roundoff:r2(total-raw),total:total};
+}
+function inWords(n){
+  n=Math.round(n);if(n===0)return 'Zero';
+  var a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  var b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function two(x){return x<20?a[x]:b[Math.floor(x/10)]+(x%10?' '+a[x%10]:'');}
+  function three(x){return (x>=100?a[Math.floor(x/100)]+' Hundred'+(x%100?' ':''):'')+(x%100?two(x%100):'');}
+  var s='',cr=Math.floor(n/1e7);n%=1e7;var lk=Math.floor(n/1e5);n%=1e5;var th=Math.floor(n/1e3);n%=1e3;
+  if(cr)s+=three(cr)+' Crore ';if(lk)s+=two(lk)+' Lakh ';if(th)s+=two(th)+' Thousand ';if(n)s+=three(n);
+  return s.trim();
+}
+var PAPER={'58':58,'80':80,'a4':210};
+
+/* ---------- PDF: invoice ---------- */
+function layoutInvoice(doc,inv,W){
+  var s=S.settings,co=inv.co||{};
+  var m=W<100?3:15,cw=W-2*m,fs=W<65?7.5:(W<100?8.5:10),k=0.3528;
+  var y=m-1;
+  function lh(sz){return sz*k*1.3;}
+  function text(t,sz,bold,al){
+    doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(sz);
+    doc.splitTextToSize(String(t),cw).forEach(function(l){y+=lh(sz);doc.text(l,al==='c'?W/2:m,y,{align:al==='c'?'center':'left'});});
+  }
+  function row(l,r,sz,bold){
+    doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(sz);y+=lh(sz);
+    doc.text(String(l),m,y);doc.text(String(r),W-m,y,{align:'right'});
+  }
+  function rule(){y+=1.2;doc.setLineWidth(0.15);doc.line(m,y,W-m,y);y+=0.8;}
+  text(co.company||'Restaurant',fs+3,true,'c');
+  if(co.address)text(co.address,fs-1,false,'c');
+  var contact=[co.phone?'Ph: '+co.phone:'',co.email||''].filter(Boolean).join('   ');
+  if(contact)text(contact,fs-1,false,'c');
+  if(co.gstin)text('GSTIN: '+co.gstin,fs,true,'c');
+  if(co.fssai)text('FSSAI: '+co.fssai,fs-1,false,'c');
+  if(co.state)text('State: '+co.state,fs-1,false,'c');
+  rule();text('TAX INVOICE',fs+1,true,'c');rule();
+  row('Invoice No:',inv.no,fs,true);
+  row('Date:',dmyT(inv.date),fs,false);
+  text('Customer: '+inv.customer.name,fs,false);
+  if(inv.customer.phone)text('Phone: '+inv.customer.phone,fs,false);
+  if(inv.customer.gstin)text('Customer GSTIN: '+inv.customer.gstin,fs,false);
+  rule();row('Item','Amount',fs,true);rule();
+  inv.items.forEach(function(it){
+    text(it.name,fs,false);
+    row('   '+it.qty+' x '+money(it.price)+(it.hsn?'   HSN '+it.hsn:''),money(it.price*it.qty),fs-1,false);
+  });
+  rule();
+  row(inv.inclusive?'Taxable value (prices incl. GST)':'Sub total',money(inv.taxable),fs,false);
+  inv.rates.forEach(function(r){
+    if(r.rate>0){row('CGST @'+(r.rate/2)+'%',money(r.cgst),fs,false);row('SGST @'+(r.rate/2)+'%',money(r.sgst),fs,false);}
+  });
+  if(inv.roundoff)row('Round off',(inv.roundoff>0?'+':'')+inv.roundoff.toFixed(2),fs,false);
+  rule();row('GRAND TOTAL','Rs. '+money(inv.total),fs+3,true);rule();
+  text('Rupees '+inWords(inv.total)+' Only',fs-1,false);
+  y+=2;
+  var bs=W<100?16:26,sy=y;
+  if(s.seal){try{doc.addImage(s.seal,'PNG',m,sy,bs,bs);}catch(e){}}
+  if(s.sign){try{var sw=bs*1.6,sh=bs*0.64;doc.addImage(s.sign,'PNG',W-m-sw,sy+(bs-sh),sw,sh);}catch(e){}}
+  if(s.seal||s.sign){
+    y=sy+bs+1;doc.setFont('helvetica','normal');doc.setFontSize(fs-1);y+=lh(fs-1);
+    doc.text('Authorised Signatory',W-m,y,{align:'right'});
+  }
+  y+=1;text('Thank you! Visit again.',fs,false,'c');
+  text('This is a computer generated invoice.',fs-2,false,'c');
+  return y+m;
+}
+function buildInvoicePdf(inv){
+  var J=window.jspdf.jsPDF,W=PAPER[inv.paper]||80;
+  var probe=new J({unit:'mm',format:[W,3000]});
+  var H=layoutInvoice(probe,inv,W)+2;
+  var fmt=(inv.paper==='a4'&&H<=297)?'a4':[W,Math.max(H,40)];
+  var doc=new J({unit:'mm',format:fmt});
+  layoutInvoice(doc,inv,W);
+  return doc;
+}
+
+/* ---------- PDF: customer summary bill ---------- */
+function buildSummaryPdf(g,r){
+  var J=window.jspdf.jsPDF,doc=new J({unit:'mm',format:'a4'}),s=S.settings,W=210,m=15,y=14;
+  function t(txt,x,sz,b,al){doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(sz);doc.text(String(txt),x,y,al?{align:al}:undefined);}
+  function head(){
+    t('#',m,9,true);t('Invoice No',m+9,9,true);t('Date',m+55,9,true);
+    t('Taxable',118,9,true,'right');t('CGST',140,9,true,'right');t('SGST',162,9,true,'right');t('Total',W-m,9,true,'right');
+    y+=1.5;doc.setLineWidth(0.2);doc.line(m,y,W-m,y);y+=4.5;
+  }
+  t(s.company||'Restaurant',W/2,15,true,'center');y+=5.5;
+  if(s.address){doc.setFontSize(9);doc.splitTextToSize(s.address,150).forEach(function(l){t(l,W/2,9,false,'center');y+=4.2;});}
+  var c=[s.phone?'Ph: '+s.phone:'',s.email||''].filter(Boolean).join('   ');if(c){t(c,W/2,9,false,'center');y+=4.2;}
+  if(s.gstin){t('GSTIN: '+s.gstin,W/2,10,true,'center');y+=5;}
+  y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=7;
+  t('SUMMARY BILL',W/2,13,true,'center');y+=7;
+  t('Customer: '+g.name,m,10,true);y+=5;
+  if(g.gstin){t('GSTIN: '+g.gstin,m,10,false);y+=5;}
+  if(g.phone){t('Phone: '+g.phone,m,10,false);y+=5;}
+  var per=(r.a===r.b)?dmyKey(r.a):(dmyKey(r.a)+'  to  '+dmyKey(r.b));
+  t('Period: '+per,m,10,false);y+=8;
+  head();
+  var T={taxable:0,cgst:0,sgst:0,total:0};
+  g.invs.forEach(function(inv,i){
+    if(y>272){doc.addPage();y=16;head();}
+    t(i+1,m,9,false);t(inv.no,m+9,9,false);t(dmy(inv.date),m+55,9,false);
+    t(money(inv.taxable),118,9,false,'right');t(money(inv.cgst),140,9,false,'right');t(money(inv.sgst),162,9,false,'right');t(money(inv.total),W-m,9,false,'right');
+    T.taxable+=inv.taxable;T.cgst+=inv.cgst;T.sgst+=inv.sgst;T.total+=inv.total;y+=5.2;
+  });
+  if(y>250){doc.addPage();y=16;}
+  y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=5.5;
+  t('TOTAL ('+g.invs.length+' invoices)',m,10,true);
+  t(money(T.taxable),118,10,true,'right');t(money(T.cgst),140,10,true,'right');t(money(T.sgst),162,10,true,'right');t(money(T.total),W-m,10,true,'right');y+=8;
+  t('Amount payable: Rs. '+money(T.total),m,12,true);y+=6;
+  doc.setFontSize(9);doc.splitTextToSize('Rupees '+inWords(T.total)+' Only',W-2*m).forEach(function(l){t(l,m,9,false);y+=4.2;});
+  y+=6;
+  if(y>245){doc.addPage();y=20;}
+  var sy=y;
+  if(s.seal){try{doc.addImage(s.seal,'PNG',m,sy,28,28);}catch(e){}}
+  if(s.sign){try{doc.addImage(s.sign,'PNG',W-m-45,sy+8,45,18);}catch(e){}}
+  if(s.seal||s.sign){y=sy+31;t('Authorised Signatory',W-m,9,false,'right');}
+  return doc;
+}
+
+/* ---------- Excel ---------- */
+function buildMasterBlob(){
+  var wb=XLSX.utils.book_new();
+  var A=[['Invoice No','Invoice Date','Customer Name','Customer GSTIN','Customer Phone','Place of Supply','Taxable Value','CGST','SGST','Total GST','Round Off','Invoice Value']];
+  var B=[['Invoice No','Invoice Date','Customer GSTIN','GST Rate %','Taxable Value','CGST','SGST','IGST','Cess']];
+  var C=[['Invoice No','Invoice Date','Item','HSN/SAC','Qty','Rate','GST %','Taxable Value','GST Amount','Line Amount']];
+  S.invoices.forEach(function(v){
+    var co=v.co||{};
+    A.push([v.no,dmy(v.date),v.customer.name,v.customer.gstin||'',v.customer.phone||'',co.state||'',v.taxable,v.cgst,v.sgst,v.tax,v.roundoff,v.total]);
+    v.rates.forEach(function(r){B.push([v.no,dmy(v.date),v.customer.gstin||'',r.rate,r.taxable,r.cgst,r.sgst,0,0]);});
+    v.items.forEach(function(it){C.push([v.no,dmy(v.date),it.name,it.hsn||'',it.qty,it.price,it.gst,it.taxable,it.tax,it.amount]);});
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(A),'Invoices');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(B),'GST Rate-wise');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(C),'Items');
+  var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  return new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+/* ---------- periods ---------- */
+function range(type,ref,from,to){
+  var d=new Date((ref||ymd(new Date()))+'T00:00:00'),a,b;
+  if(type==='daily'){a=new Date(d);b=new Date(d);}
+  else if(type==='weekly'){var dow=(d.getDay()+6)%7;a=new Date(d);a.setDate(d.getDate()-dow);b=new Date(a);b.setDate(a.getDate()+6);}
+  else if(type==='monthly'){a=new Date(d.getFullYear(),d.getMonth(),1);b=new Date(d.getFullYear(),d.getMonth()+1,0);}
+  else if(type==='yearly'){var y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;a=new Date(y,3,1);b=new Date(y+1,2,31);}
+  else{a=new Date((from||ymd(d))+'T00:00:00');b=new Date((to||ymd(d))+'T00:00:00');}
+  return {a:ymd(a),b:ymd(b)};
+}
+function inRange(inv,r){var k=ymd(inv.date);return k>=r.a&&k<=r.b;}
+
+/* ---------- files / folder ---------- */
+function download(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
+function idb(){return new Promise(function(res,rej){var r=indexedDB.open('rb_files',1);r.onupgradeneeded=function(){r.result.createObjectStore('kv');};r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
+function idbGet(k){return idb().then(function(db){return new Promise(function(res,rej){var q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};});});}
+function idbSet(k,v){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+async function getDir(){
+  if(!window.showDirectoryPicker)return null;
+  var h=await idbGet('dir');if(!h)return null;
+  var p=await h.queryPermission({mode:'readwrite'});
+  if(p!=='granted')p=await h.requestPermission({mode:'readwrite'});
+  return p==='granted'?h:null;
+}
+async function saveFile(name,blob,force){
+  var dir=null;try{dir=await getDir();}catch(e){dir=null;}
+  if(dir){var fh=await dir.getFileHandle(name,{create:true});var w=await fh.createWritable();await w.write(blob);await w.close();return true;}
+  if(force)download(blob,name);
+  return false;
+}
+function fname(inv){return safe(inv.no)+'.pdf';}
+
+/* ---------- printing (HTML receipt, works on thermal + normal printers) ---------- */
+function receiptHtml(inv){
+  var W=PAPER[inv.paper]||80,co=inv.co||{},s=S.settings,nar=W<100;
+  var h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(inv.no)+'</title><style>';
+  h+='@page{margin:'+(nar?'0':'10mm')+'}*{box-sizing:border-box}body{margin:0 auto;padding:'+(nar?'3mm 1mm':'0')+';width:'+(nar?(W-4)+'mm':'100%')+';font:'+(nar?'11px':'13px')+'/1.35 Arial,Helvetica,sans-serif;color:#000}';
+  h+='.c{text-align:center}.b{font-weight:bold}.r{text-align:right}hr{border:0;border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse}td,th{padding:1px 0;vertical-align:top}th{text-align:left;border-bottom:1px solid #000}.big{font-size:'+(nar?'14px':'17px')+'}.sg{display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px}.sg img{max-height:'+(nar?'60px':'90px')+';max-width:45%}';
+  h+='</style></head><body>';
+  h+='<div class="c b" style="font-size:'+(nar?'15px':'20px')+'">'+esc(co.company||'Restaurant')+'</div>';
+  if(co.address)h+='<div class="c">'+esc(co.address).replace(/\n/g,'<br>')+'</div>';
+  var ct=[co.phone?'Ph: '+esc(co.phone):'',esc(co.email||'')].filter(Boolean).join(' &nbsp; ');if(ct)h+='<div class="c">'+ct+'</div>';
+  if(co.gstin)h+='<div class="c b">GSTIN: '+esc(co.gstin)+'</div>';
+  if(co.fssai)h+='<div class="c">FSSAI: '+esc(co.fssai)+'</div>';
+  if(co.state)h+='<div class="c">State: '+esc(co.state)+'</div>';
+  h+='<hr><div class="c b">TAX INVOICE</div><hr>';
+  h+='<div><b>Invoice:</b> '+esc(inv.no)+'</div><div><b>Date:</b> '+dmyT(inv.date)+'</div><div><b>Customer:</b> '+esc(inv.customer.name)+'</div>';
+  if(inv.customer.phone)h+='<div><b>Phone:</b> '+esc(inv.customer.phone)+'</div>';
+  if(inv.customer.gstin)h+='<div><b>GSTIN:</b> '+esc(inv.customer.gstin)+'</div>';
+  h+='<hr><table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>';
+  inv.items.forEach(function(it){h+='<tr><td>'+esc(it.name)+(it.hsn?'<br><small>HSN '+esc(it.hsn)+'</small>':'')+'</td><td class="r">'+it.qty+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(it.price*it.qty)+'</td></tr>';});
+  h+='</table><hr><table>';
+  h+='<tr><td>'+(inv.inclusive?'Taxable value (prices incl. GST)':'Sub total')+'</td><td class="r">'+money(inv.taxable)+'</td></tr>';
+  inv.rates.forEach(function(r){if(r.rate>0)h+='<tr><td>CGST @'+(r.rate/2)+'%</td><td class="r">'+money(r.cgst)+'</td></tr><tr><td>SGST @'+(r.rate/2)+'%</td><td class="r">'+money(r.sgst)+'</td></tr>';});
+  if(inv.roundoff)h+='<tr><td>Round off</td><td class="r">'+(inv.roundoff>0?'+':'')+inv.roundoff.toFixed(2)+'</td></tr>';
+  h+='</table><hr><table><tr class="b big"><td>TOTAL</td><td class="r">&#8377; '+money(inv.total)+'</td></tr></table><hr>';
+  h+='<div>Rupees '+esc(inWords(inv.total))+' Only</div>';
+  if(s.seal||s.sign){h+='<div class="sg"><div>'+(s.seal?'<img src="'+s.seal+'">':'')+'</div><div class="r">'+(s.sign?'<img src="'+s.sign+'"><br>':'')+'Authorised Signatory</div></div>';}
+  h+='<hr><div class="c">Thank you! Visit again.</div></body></html>';
+  return h;
+}
+function printHtml(html){
+  var f=document.createElement('iframe');
+  f.style.cssText='position:fixed;left:-9999px;top:0;width:420px;height:700px;border:0';
+  document.body.appendChild(f);
+  var d=f.contentWindow.document;d.open();d.write(html);d.close();
+  setTimeout(function(){try{f.contentWindow.focus();f.contentWindow.print();}catch(e){toast('Print failed: '+e.message,true);}setTimeout(function(){f.remove();},60000);},400);
+}
+
+/* ---------- images ---------- */
+function imgData(file,w,h,mode){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();fr.onerror=rej;
+    fr.onload=function(){var im=new Image();im.onerror=rej;im.onload=function(){
+      var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+      var sc=mode==='cover'?Math.max(w/im.width,h/im.height):Math.min(w/im.width,h/im.height);
+      var dw=im.width*sc,dh=im.height*sc;
+      if(mode==='cover'){x.fillStyle='#fff';x.fillRect(0,0,w,h);}
+      x.drawImage(im,(w-dw)/2,(h-dh)/2,dw,dh);
+      res(c.toDataURL(mode==='cover'?'image/jpeg':'image/png',0.85));
+    };im.src=fr.result;};
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ---------- rendering: billing ---------- */
+function colorFor(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return 'hsl('+h+',55%,45%)';}
+function tile(it){return it.img?'<img src="'+it.img+'" alt="">':'<div class="ph" style="background:'+colorFor(it.name)+'">'+esc((it.name||'?').charAt(0).toUpperCase())+'</div>';}
+function renderMenu(){
+  var cats=['All'];S.menu.forEach(function(m){if(m.cat&&cats.indexOf(m.cat)<0)cats.push(m.cat);});
+  if(cats.indexOf(S.cat)<0)S.cat='All';
+  $('cats').innerHTML=cats.map(function(c){return '<button class="chip'+(c===S.cat?' on':'')+'" data-act="cat" data-v="'+esc(c)+'">'+esc(c)+'</button>';}).join('');
+  var q=S.q.toLowerCase();
+  var list=S.menu.filter(function(m){return (S.cat==='All'||m.cat===S.cat)&&(!q||m.name.toLowerCase().indexOf(q)>=0);});
+  $('menuGrid').innerHTML=list.length?list.map(function(m){return '<div class="tile" data-act="add" data-id="'+m.id+'">'+tile(m)+'<div class="tn">'+esc(m.name)+'</div><div class="tp">₹'+money(m.price)+'</div></div>';}).join(''):'<p class="muted">No items found. Add menu items in Settings.</p>';
+}
+function renderBill(){
+  var c=calc(S.bill,S.settings.inclusive);
+  $('billLines').innerHTML=S.bill.length?S.bill.map(function(it,i){
+    return '<div class="bl"><div class="bn">'+esc(it.name)+'<small>₹'+money(it.price)+' • GST '+it.gst+'%</small></div><div class="qty"><button data-act="dec" data-i="'+i+'">−</button><b>'+it.qty+'</b><button data-act="inc" data-i="'+i+'">+</button></div><div class="ba">₹'+money(c.lines[i].amount)+'</div><button class="x" data-act="rm" data-i="'+i+'">✕</button></div>';
+  }).join(''):'<p class="muted">Tap menu items to add them to the bill.</p>';
+  var h='<div><span>'+(S.settings.inclusive?'Taxable value':'Sub total')+'</span><span>₹'+money(c.taxable)+'</span></div>';
+  h+='<div><span>CGST</span><span>₹'+money(c.cgst)+'</span></div><div><span>SGST</span><span>₹'+money(c.sgst)+'</span></div>';
+  if(c.roundoff)h+='<div><span>Round off</span><span>'+(c.roundoff>0?'+':'')+c.roundoff.toFixed(2)+'</span></div>';
+  h+='<div class="g"><span>Total</span><span>₹'+money(c.total)+'</span></div>';
+  $('billTotals').innerHTML=h;
+}
+function renderCustList(){
+  var seen={};S.invoices.forEach(function(i){seen[i.customer.name]=1;});
+  $('custList').innerHTML=Object.keys(seen).filter(function(n){return n!=='Walk-in Customer';}).map(function(n){return '<option value="'+esc(n)+'">';}).join('');
+}
+async function generate(print){
+  if(!S.bill.length){toast('Add items to the bill first.',true);return;}
+  var s=S.settings,c=calc(S.bill,s.inclusive),no=s.prefix+pad(s.nextNo,4);
+  var inv={no:no,date:new Date().toISOString(),
+    customer:{name:$('cName').value.trim()||'Walk-in Customer',phone:$('cPhone').value.trim(),gstin:$('cGstin').value.trim().toUpperCase()},
+    items:c.lines,inclusive:s.inclusive,rates:c.rates,taxable:c.taxable,cgst:c.cgst,sgst:c.sgst,tax:c.tax,roundoff:c.roundoff,total:c.total,paper:$('paper').value,
+    co:{company:s.company,address:s.address,phone:s.phone,email:s.email,gstin:s.gstin,fssai:s.fssai,state:s.state}};
+  var blob;
+  try{blob=buildInvoicePdf(inv).output('blob');}catch(e){toast('Could not build PDF: '+e.message,true);return;}
+  S.invoices.push(inv);s.nextNo++;save('invoices',S.invoices);save('settings',s);
+  S.bill=[];$('cName').value='';$('cPhone').value='';$('cGstin').value='';
+  renderBill();renderCustList();
+  if(print)printHtml(receiptHtml(inv));
+  try{
+    var inFolder=await saveFile(fname(inv),blob,true);
+    if(inFolder){await saveFile('Master_Invoices.xlsx',buildMasterBlob(),false);toast('Saved '+fname(inv)+' and updated Master_Invoices.xlsx in "'+s.folderName+'".');}
+    else toast('Invoice '+no+' saved; PDF downloaded. Choose a folder in Settings to auto-save PDFs and the master Excel.');
+  }catch(e){toast('Invoice '+no+' saved, but the file could not be written: '+e.message,true);}
+}
+
+/* ---------- rendering: invoices ---------- */
+function tbl(head,rows,al){
+  return '<table><thead><tr>'+head.map(function(h,i){return '<th class="'+(al[i]||'')+'">'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(r){return '<tr>'+r.map(function(c,i){return '<td class="'+(al[i]||'')+'">'+c+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+}
+function renderInvoices(){
+  var q=$('iQ').value.trim().toLowerCase(),f=$('iFrom').value,t=$('iTo').value;
+  var list=S.invoices.filter(function(i){
+    var k=ymd(i.date);
+    return (!q||i.no.toLowerCase().indexOf(q)>=0||i.customer.name.toLowerCase().indexOf(q)>=0)&&(!f||k>=f)&&(!t||k<=t);
+  }).slice().reverse();
+  if(!list.length){$('iOut').innerHTML='<p class="muted">No invoices yet.</p>';return;}
+  $('iOut').innerHTML=tbl(['Invoice','Date','Customer','Taxable','GST','Total',''],list.map(function(i){
+    return [esc(i.no),dmyT(i.date),esc(i.customer.name)+(i.customer.gstin?'<br><small>'+esc(i.customer.gstin)+'</small>':''),'₹'+money(i.taxable),'₹'+money(i.tax),'<b>₹'+money(i.total)+'</b>',
+      '<button class="btn sm" data-act="invprint" data-no="'+esc(i.no)+'">🖨️</button> <button class="btn sm" data-act="invpdf" data-no="'+esc(i.no)+'">PDF</button>'];
+  }),['','','','r','r','r','']);
+}
+function findInv(no){return S.invoices.filter(function(i){return i.no===no;})[0];}
+
+/* ---------- rendering: reports ---------- */
+var lastRep=null;
+function renderReport(){
+  var type=$('rType').value;
+  $('rCustom').style.display=type==='custom'?'flex':'none';
+  var r=range(type,$('rDate').value,$('rFrom').value,$('rTo').value);
+  var list=S.invoices.filter(function(i){return inRange(i,r);});
+  var T={n:list.length,taxable:0,cgst:0,sgst:0,total:0},rates={},items={},groups={};
+  list.forEach(function(inv){
+    T.taxable+=inv.taxable;T.cgst+=inv.cgst;T.sgst+=inv.sgst;T.total+=inv.total;
+    inv.rates.forEach(function(m){var o=rates[m.rate]||(rates[m.rate]={rate:m.rate,taxable:0,cgst:0,sgst:0});o.taxable+=m.taxable;o.cgst+=m.cgst;o.sgst+=m.sgst;});
+    inv.items.forEach(function(it){var o=items[it.name]||(items[it.name]={name:it.name,qty:0,amt:0});o.qty+=it.qty;o.amt+=it.amount;});
+    var gk=type==='yearly'?ymd(inv.date).slice(0,7):ymd(inv.date);var g=groups[gk]||(groups[gk]={k:gk,n:0,total:0});g.n++;g.total+=inv.total;
+  });
+  var rl=Object.keys(rates).map(Number).sort(function(a,b){return a-b;}).map(function(k){return rates[k];});
+  var il=Object.keys(items).map(function(k){return items[k];}).sort(function(a,b){return b.amt-a.amt;});
+  var gl=Object.keys(groups).sort().map(function(k){return groups[k];});
+  var title=(r.a===r.b)?dmyKey(r.a):(dmyKey(r.a)+' – '+dmyKey(r.b));
+  lastRep={title:title,type:type,T:T,rates:rl,items:il,groups:gl,list:list};
+  var gname=function(k){return k.length===7?MON[+k.slice(5)-1]+' '+k.slice(0,4):dmyKey(k);};
+  var h='<p class="muted"><b>'+esc(title)+'</b></p><div class="stats"><div class="stat">Invoices<b>'+T.n+'</b></div><div class="stat g">Sales (incl. GST)<b>₹'+money(T.total)+'</b></div><div class="stat">Taxable value<b>₹'+money(T.taxable)+'</b></div><div class="stat p">GST collected<b>₹'+money(T.cgst+T.sgst)+'</b></div></div>';
+  if(!list.length){$('rOut').innerHTML=h+'<p class="muted">No invoices in this period.</p>';return;}
+  if(type!=='daily')h+='<h3>'+(type==='yearly'?'Month-wise':'Day-wise')+'</h3><div class="scroll">'+tbl([type==='yearly'?'Month':'Date','Invoices','Sales'],gl.map(function(g){return [gname(g.k),g.n,'₹'+money(g.total)];}),['','r','r'])+'</div>';
+  h+='<h3>GST rate-wise</h3><div class="scroll">'+tbl(['GST %','Taxable','CGST','SGST'],rl.map(function(x){return [x.rate+'%','₹'+money(x.taxable),'₹'+money(x.cgst),'₹'+money(x.sgst)];}),['','r','r','r'])+'</div>';
+  h+='<h3>Item-wise sales</h3><div class="scroll">'+tbl(['Item','Qty','Amount'],il.map(function(x){return [esc(x.name),x.qty,'₹'+money(x.amt)];}),['','r','r'])+'</div>';
+  h+='<h3>Invoices</h3><div class="scroll">'+tbl(['Invoice','Date','Customer','Total'],list.map(function(i){return [esc(i.no),dmyT(i.date),esc(i.customer.name),'₹'+money(i.total)];}),['','','','r'])+'</div>';
+  $('rOut').innerHTML=h;
+}
+function exportReport(){
+  if(!lastRep||!lastRep.list.length){toast('Nothing to export for this period.',true);return;}
+  var R=lastRep,wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Period',R.title],['Invoices',R.T.n],['Taxable value',r2(R.T.taxable)],['CGST',r2(R.T.cgst)],['SGST',r2(R.T.sgst)],['Total sales',R.T.total]]),'Summary');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['GST %','Taxable','CGST','SGST']].concat(R.rates.map(function(x){return [x.rate,r2(x.taxable),r2(x.cgst),r2(x.sgst)];}))),'GST Rate-wise');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Item','Qty','Amount']].concat(R.items.map(function(x){return [x.name,x.qty,r2(x.amt)];}))),'Items');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Invoice','Date','Customer','GSTIN','Taxable','CGST','SGST','Total']].concat(R.list.map(function(i){return [i.no,dmy(i.date),i.customer.name,i.customer.gstin||'',i.taxable,i.cgst,i.sgst,i.total];}))),'Invoices');
+  var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  download(new Blob([out],{type:'application/octet-stream'}),'Report_'+safe(R.title)+'.xlsx');
+}
+
+/* ---------- rendering: customer summary ---------- */
+var custCache=[],custRange={a:'',b:''};
+function renderCustomers(){
+  var r={a:$('cFrom').value||'0000-00-00',b:$('cTo').value||'9999-99-99'},q=$('cQ').value.trim().toLowerCase(),g={};
+  custRange=r;
+  S.invoices.forEach(function(inv){
+    if(!inRange(inv,r))return;
+    var key=inv.customer.name.trim().toLowerCase()+'|'+(inv.customer.gstin||'');
+    var o=g[key]||(g[key]={key:key,name:inv.customer.name,gstin:inv.customer.gstin,phone:inv.customer.phone,invs:[],total:0});
+    o.invs.push(inv);o.total+=inv.total;
+  });
+  custCache=Object.keys(g).map(function(k){return g[k];}).filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>=0;}).sort(function(a,b){return b.total-a.total;});
+  if(!custCache.length){$('cOut').innerHTML='<p class="muted">No invoices in this period.</p>';return;}
+  $('cOut').innerHTML=custCache.map(function(c,i){
+    return '<div class="cust"><div class="h"><div><b>'+esc(c.name)+'</b>'+(c.gstin?'<br><small>GSTIN '+esc(c.gstin)+'</small>':'')+'</div><div style="text-align:right"><b>₹'+money(c.total)+'</b><br><small>'+c.invs.length+' invoice(s)</small></div></div>'+
+      '<div class="scroll">'+tbl(['Invoice','Date','Total'],c.invs.map(function(v){return [esc(v.no),dmyT(v.date),'₹'+money(v.total)];}),['','','r'])+'</div>'+
+      '<div class="btns"><button class="btn pri" data-act="custpdf" data-i="'+i+'">📄 Summary bill (PDF)</button></div></div>';
+  }).join('');
+}
+
+/* ---------- rendering: settings ---------- */
+function fillSettings(){
+  var s=S.settings;
+  $('sCompany').value=s.company;$('sGstin').value=s.gstin;$('sAddress').value=s.address;$('sPhone').value=s.phone;$('sEmail').value=s.email;$('sFssai').value=s.fssai;
+  $('sState').value=s.state;$('sPrefix').value=s.prefix;$('sNext').value=s.nextNo;$('sPaper').value=s.paper;$('sDefGst').value=s.defGst;$('sIncl').checked=!!s.inclusive;
+  $('folderName').textContent=s.folderName||'not chosen (downloads folder will be used)';
+  setPrev('sealPrev',s.seal);setPrev('signPrev',s.sign);
+  $('paper').value=s.paper;$('coName').textContent=s.company||'Restaurant Billing';
+}
+function setPrev(id,src){var e=$(id);if(src){e.src=src;e.style.display='block';}else{e.removeAttribute('src');e.style.display='none';}}
+function saveSettingsForm(){
+  var s=S.settings;
+  s.company=$('sCompany').value.trim();s.gstin=$('sGstin').value.trim().toUpperCase();s.address=$('sAddress').value.trim();s.phone=$('sPhone').value.trim();s.email=$('sEmail').value.trim();s.fssai=$('sFssai').value.trim();
+  s.state=$('sState').value.trim();s.prefix=$('sPrefix').value;s.nextNo=Math.max(1,parseInt($('sNext').value,10)||1);s.paper=$('sPaper').value;s.defGst=parseFloat($('sDefGst').value)||0;s.inclusive=$('sIncl').checked;
+  save('settings',s);fillSettings();renderBill();
+  var ok=!s.gstin||/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(s.gstin);
+  toast(ok?'Settings saved.':'Settings saved. Note: the GSTIN does not look like a valid 15-character GSTIN.',!ok);
+}
+function renderMenuList(){
+  var cats={};S.menu.forEach(function(m){if(m.cat)cats[m.cat]=1;});
+  $('catList').innerHTML=Object.keys(cats).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
+  $('mList').innerHTML=S.menu.length?S.menu.map(function(m){
+    return '<div class="ml"><div class="t">'+tile(m)+'</div><div class="i"><b>'+esc(m.name)+'</b><small>'+esc(m.cat||'No category')+' • ₹'+money(m.price)+' • GST '+m.gst+'%'+(m.hsn?' • HSN '+esc(m.hsn):'')+'</small></div><button class="btn sm" data-act="edititem" data-id="'+m.id+'">Edit</button><button class="btn sm bad" data-act="delitem" data-id="'+m.id+'">Delete</button></div>';
+  }).join(''):'<p class="muted">No menu items yet.</p>';
+}
+function openItemForm(it){
+  S.edit=it;$('mName').value=it.name;$('mCat').value=it.cat||'';$('mPrice').value=it.price;$('mGst').value=it.gst;$('mHsn').value=it.hsn||'';$('mImg').value='';
+  setPrev('mPrev',it.img);$('mForm').style.display='block';$('mName').focus();
+}
+
+/* ---------- actions ---------- */
+var A={
+  tab:function(t){
+    ['billing','invoices','reports','customers','settings'].forEach(function(n){$('t-'+n).className=(n===t.dataset.v)?'on':'';});
+    Array.prototype.forEach.call(document.querySelectorAll('#nav button'),function(b){b.className=(b===t)?'on':'';});
+    var v=t.dataset.v;if(v==='invoices')renderInvoices();if(v==='reports')renderReport();if(v==='customers')renderCustomers();if(v==='settings'){renderMenuList();}
+  },
+  cat:function(t){S.cat=t.dataset.v;renderMenu();},
+  add:function(t){
+    var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(!m)return;
+    var e=S.bill.filter(function(b){return b.id===m.id;})[0];
+    if(e)e.qty++;else S.bill.push({id:m.id,name:m.name,price:+m.price,gst:+m.gst||0,hsn:m.hsn||'',qty:1});
+    renderBill();
+  },
+  inc:function(t){S.bill[+t.dataset.i].qty++;renderBill();},
+  dec:function(t){var i=+t.dataset.i;S.bill[i].qty--;if(S.bill[i].qty<=0)S.bill.splice(i,1);renderBill();},
+  rm:function(t){S.bill.splice(+t.dataset.i,1);renderBill();},
+  clear:function(){S.bill=[];renderBill();},
+  gen:function(t){generate(t.dataset.print==='1');},
+  invprint:function(t){var i=findInv(t.dataset.no);if(i)printHtml(receiptHtml(i));},
+  invpdf:async function(t){
+    var i=findInv(t.dataset.no);if(!i)return;
+    try{var inF=await saveFile(fname(i),buildInvoicePdf(i).output('blob'),true);toast(inF?'Saved '+fname(i)+' to "'+S.settings.folderName+'".':'PDF downloaded.');}catch(e){toast(e.message,true);}
+  },
+  exportmaster:async function(){
+    if(!S.invoices.length){toast('No invoices yet.',true);return;}
+    try{var inF=await saveFile('Master_Invoices.xlsx',buildMasterBlob(),true);toast(inF?'Master_Invoices.xlsx updated in "'+S.settings.folderName+'".':'Master_Invoices.xlsx downloaded.');}catch(e){toast(e.message,true);}
+  },
+  repxls:function(){exportReport();},
+  custpdf:async function(t){
+    var g=custCache[+t.dataset.i];if(!g)return;
+    var name='Summary_'+safe(g.name)+'_'+custRange.a.replace(/^0000.*/,'start')+'_to_'+custRange.b.replace(/^9999.*/,'end')+'.pdf';
+    try{var inF=await saveFile(name,buildSummaryPdf(g,custRange).output('blob'),true);toast(inF?'Saved '+name+' to "'+S.settings.folderName+'".':'Summary bill downloaded.');}catch(e){toast(e.message,true);}
+  },
+  savesettings:saveSettingsForm,
+  pickfolder:async function(){
+    if(!window.showDirectoryPicker){toast('This browser cannot pick a folder (use Chrome or Edge on a computer). Files will go to your Downloads folder.',true);return;}
+    try{var h=await window.showDirectoryPicker({mode:'readwrite'});await idbSet('dir',h);S.settings.folderName=h.name;save('settings',S.settings);fillSettings();toast('Invoices will be saved in "'+h.name+'".');}
+    catch(e){if(e.name!=='AbortError')toast(e.message,true);}
+  },
+  rmseal:function(){S.settings.seal='';save('settings',S.settings);fillSettings();},
+  rmsign:function(){S.settings.sign='';save('settings',S.settings);fillSettings();},
+  newitem:function(){openItemForm({id:uid(),name:'',cat:'',price:'',gst:S.settings.defGst,hsn:'996331',img:'',isNew:true});},
+  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(m)openItemForm(Object.assign({},m));},
+  cancelitem:function(){S.edit=null;$('mForm').style.display='none';},
+  rmimg:function(){if(S.edit){S.edit.img='';setPrev('mPrev','');}},
+  saveitem:function(){
+    var e=S.edit;if(!e)return;
+    var name=$('mName').value.trim(),price=parseFloat($('mPrice').value);
+    if(!name||isNaN(price)||price<0){toast('Enter an item name and a valid price.',true);return;}
+    e.name=name;e.cat=$('mCat').value.trim();e.price=price;e.gst=parseFloat($('mGst').value)||0;e.hsn=$('mHsn').value.trim();
+    var isNew=e.isNew;delete e.isNew;
+    if(isNew)S.menu.push(e);else S.menu=S.menu.map(function(m){return m.id===e.id?e:m;});
+    save('menu',S.menu);S.edit=null;$('mForm').style.display='none';renderMenuList();renderMenu();toast('Item saved.');
+  },
+  delitem:function(t){
+    if(!confirm('Delete this menu item?'))return;
+    S.menu=S.menu.filter(function(m){return m.id!==t.dataset.id;});save('menu',S.menu);renderMenuList();renderMenu();
+  },
+  backup:function(){
+    var d={v:1,settings:S.settings,menu:S.menu,invoices:S.invoices};
+    download(new Blob([JSON.stringify(d)],{type:'application/json'}),'restaurant-billing-backup-'+ymd(new Date())+'.json');
+  },
+  restore:function(){$('restoreFile').click();}
+};
+
+/* ---------- init ---------- */
+function init(){
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[data-act]');if(!t)return;
+    var f=A[t.dataset.act];if(f)f(t,e);
+  });
+  $('q').addEventListener('input',function(){S.q=this.value;renderMenu();});
+  $('cName').addEventListener('change',function(){
+    var n=this.value.trim().toLowerCase();
+    for(var i=S.invoices.length-1;i>=0;i--){var c=S.invoices[i].customer;if(c.name.toLowerCase()===n){$('cPhone').value=c.phone||'';$('cGstin').value=c.gstin||'';break;}}
+  });
+  ['iQ','iFrom','iTo'].forEach(function(id){$(id).addEventListener('input',renderInvoices);});
+  ['rType','rDate','rFrom','rTo'].forEach(function(id){$(id).addEventListener('input',renderReport);});
+  ['cFrom','cTo','cQ'].forEach(function(id){$(id).addEventListener('input',renderCustomers);});
+  $('sealFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.seal=await imgData(this.files[0],240,240,'contain');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
+  $('signFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.sign=await imgData(this.files[0],300,120,'contain');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
+  $('mImg').addEventListener('change',async function(){if(this.files[0]&&S.edit){try{S.edit.img=await imgData(this.files[0],240,180,'cover');setPrev('mPrev',S.edit.img);}catch(e){toast('Could not read image.',true);}}});
+  $('restoreFile').addEventListener('change',function(){
+    var f=this.files[0];if(!f)return;var self=this;
+    var fr=new FileReader();fr.onload=function(){
+      try{var d=JSON.parse(fr.result);if(!d.settings||!d.menu||!d.invoices)throw new Error('Not a valid backup file');
+        if(!confirm('Replace all current data with this backup?'))return;
+        S.settings=Object.assign(S.settings,d.settings);S.menu=d.menu;S.invoices=d.invoices;save('settings',S.settings);save('menu',S.menu);save('invoices',S.invoices);
+        fillSettings();renderMenu();renderMenuList();renderBill();renderCustList();toast('Backup restored.');
+      }catch(e){toast('Restore failed: '+e.message,true);}
+      self.value='';
+    };fr.readAsText(f);
+  });
+  var today=ymd(new Date()),first=today.slice(0,8)+'01';
+  $('rDate').value=today;$('rFrom').value=first;$('rTo').value=today;$('cFrom').value=first;$('cTo').value=today;
+  fillSettings();renderMenu();renderBill();renderCustList();renderMenuList();
+}
+
+var api={calc:calc,inWords:inWords,range:range,buildInvoicePdf:buildInvoicePdf,buildSummaryPdf:buildSummaryPdf,buildMasterBlob:buildMasterBlob,receiptHtml:receiptHtml,state:S};
+if(typeof window!=='undefined')window.__rb=api;
+if(typeof document!=='undefined'&&document.getElementById('toast'))init();
+})();
+</script>
+</body>
+</html>
