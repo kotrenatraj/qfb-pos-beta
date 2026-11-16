@@ -35,3 +35,8 @@ are then saved there automatically. On phones and other browsers, files go to th
 - Assumes sales within your own state (CGST + SGST). IGST for interstate sales is not included.
 - PDFs print the rupee as "Rs." because the built-in PDF font has no ₹ symbol.
 - On first print, pick the matching roll size (for example 80 mm) in the print dialog.
+
+## Server mode (shared data across devices)
+Run `QFB_PASSWORD=... node server.js` and open the address in any browser. See [DEPLOY.md](DEPLOY.md).
+Opening `restaurant-billing.html` directly as a file still works as a single-device app.
+Tests: `node test/server.test.js` and (needs jsdom, jspdf, xlsx) `node test/e2e.test.js`.

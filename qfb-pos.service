@@ -1,0 +1,17 @@
+[Unit]
+Description=QFB POS
+After=network.target
+
+[Service]
+User=qfb
+WorkingDirectory=/opt/qfb-pos
+EnvironmentFile=/etc/qfb-pos.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/qfb-pos
+
+[Install]
+WantedBy=multi-user.target
