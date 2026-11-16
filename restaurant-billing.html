@@ -217,7 +217,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
       </div>
       <label>Company address</label><textarea id="sAddress" rows="3"></textarea>
       <div class="three">
-        <div><label>Phone</label><input id="sPhone"></div>
+        <div><label>Hotel contact number (printed on bills)</label><input id="sPhone"></div>
         <div><label>Email</label><input id="sEmail"></div>
         <div><label>FSSAI no. (optional)</label><input id="sFssai"></div>
       </div>
@@ -225,7 +225,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
         <div><label>Summary invoice prefix</label><input id="sSumPrefix"></div>
         <div><label>Next summary invoice number</label><input id="sSumNext" type="number" min="1"></div>
       </div>
-      <label>Alert number for bill changes (WhatsApp / SMS)</label><input id="sAlert" type="tel" placeholder="Optional. Leave blank to use the Phone above">
+      <label>Alert number for bill changes (WhatsApp / SMS). Not printed on bills</label><input id="sAlert" type="tel" placeholder="Optional. Leave blank to use the Phone above">
       <p class="muted" style="margin:0 0 8px">When a past bill is edited or cancelled, a ready-made message is prepared for this number (or the hotel Phone if blank).</p>
       <div class="three">
         <div><label>State (place of supply)</label><input id="sState" placeholder="e.g. Karnataka (29)"></div>
@@ -387,7 +387,7 @@ function layoutInvoice(doc,inv,W){
   if(s.logo){var L=W<65?15:(W<100?19:24);try{doc.addImage(s.logo,'PNG',W/2-L/2,y+1,L,L);}catch(e){}y+=L+2;}
   text(co.company||'Restaurant',fs+3,true,'c');
   if(co.address)text(co.address,fs-1,false,'c');
-  var contact=[co.phone?'Ph: '+co.phone:'',co.email||''].filter(Boolean).join('   ');
+  var hp=s.phone||co.phone,contact=[hp?'Ph: '+hp:'',co.email||''].filter(Boolean).join('   ');
   if(contact)text(contact,fs-1,false,'c');
   if(co.gstin)text('GSTIN: '+co.gstin,fs,true,'c');
   if(co.fssai)text('FSSAI: '+co.fssai,fs-1,false,'c');
@@ -399,20 +399,22 @@ function layoutInvoice(doc,inv,W){
   if(inv.customer.phone)text('Phone: '+inv.customer.phone,fs,false);
   if(inv.customer.gstin)text('Customer GSTIN: '+inv.customer.gstin,fs,false);
   rule();
-  var qx=m+(W<65?4.5:7),ix=qx+1.8,ax=W-m,rx=W>=75?ax-(W<100?19:30):0,iw=(rx?rx-ix-(W<100?15:11):ax-ix-(W<100?13:16))-(W>=100?7:0);
+  var sx=m+(W<65?3.5:(W<100?4:5)),qx=sx+(W<65?6:(W<100?7:9)),ix=qx+1.8,ax=W-m,rx=W>=75?ax-(W<100?19:30):0,iw=(rx?rx-ix-(W<100?15:11):ax-ix-(W<100?13:16))-(W>=100?7:0);
   doc.setFont('helvetica','bold');doc.setFontSize(fs);y+=lh(fs);
-  doc.text('Qty',qx,y,{align:'right'});doc.text('Item',ix,y);if(rx)doc.text('Price',rx,y,{align:'right'});doc.text('Amount',ax,y,{align:'right'});
+  doc.text('#',sx,y,{align:'right'});doc.text('Qty',qx,y,{align:'right'});doc.text('Item',ix,y);if(rx)doc.text('Price',rx,y,{align:'right'});doc.text('Amount',ax,y,{align:'right'});
   rule();
-  inv.items.forEach(function(it){
+  inv.items.forEach(function(it,ii){
     doc.setFont('helvetica','normal');doc.setFontSize(fs);
     var nm=doc.splitTextToSize(String(it.name),iw);
-    y+=lh(fs);doc.text(String(it.qty),qx,y,{align:'right'});doc.text(nm[0],ix,y);
+    y+=lh(fs);doc.text(String(ii+1),sx,y,{align:'right'});doc.text(String(it.qty),qx,y,{align:'right'});doc.text(nm[0],ix,y);
     if(rx)doc.text(money(it.price),rx,y,{align:'right'});
     doc.text(money(it.price*it.qty),ax,y,{align:'right'});
     for(var q=1;q<nm.length;q++){y+=lh(fs);doc.text(nm[q],ix,y);}
     var sub=[];if(!rx)sub.push('@ '+money(it.price));if(it.hsn)sub.push('HSN '+it.hsn);
     if(sub.length){doc.setFontSize(fs-2);y+=lh(fs-2);doc.text(sub.join('   '),ix,y);}
   });
+  rule();
+  text('Items: '+inv.items.length+'     Total Qty: '+inv.items.reduce(function(t,i){return t+i.qty;},0),fs-1,true);
   rule();
   row(inv.inclusive?'Taxable value':'Sub total',money(inv.taxable),fs,false);
   inv.rates.forEach(function(r){
@@ -476,14 +478,14 @@ function buildSummaryPdf(g,r,sno,sdate){
     t(i+1,m,9,true);t(inv.no,m+9,9,true);t(dmy(inv.date),m+55,9,true);
     t(money(inv.taxable),118,9,true,'right');t(money(inv.cgst),140,9,true,'right');t(money(inv.sgst),162,9,true,'right');t(money(inv.total),W-m,9,true,'right');
     T.taxable+=inv.taxable;T.cgst+=inv.cgst;T.sgst+=inv.sgst;T.total+=inv.total;y+=4.8;
-    function ihead(){doc.setTextColor(120);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.text('QTY',m+19,y,{align:'right'});doc.text('ITEM',m+24,y);doc.text('PRICE',162,y,{align:'right'});doc.text('AMOUNT',W-m,y,{align:'right'});y+=3.8;}
+    function ihead(){doc.setTextColor(120);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.text('#',m+13,y,{align:'right'});doc.text('QTY',m+23,y,{align:'right'});doc.text('ITEM',m+26,y);doc.text('PRICE',162,y,{align:'right'});doc.text('AMOUNT',W-m,y,{align:'right'});y+=3.8;}
     ihead();doc.setTextColor(60);
-    inv.items.forEach(function(it){
+    inv.items.forEach(function(it,ii){
       doc.setFont('helvetica','normal');doc.setFontSize(8.5);
-      var nm=doc.splitTextToSize(String(it.name),100);
+      var nm=doc.splitTextToSize(String(it.name),97);
       if(y>272){doc.setTextColor(0);doc.addPage();y=16;head();ihead();doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}
-      doc.text(String(it.qty),m+19,y,{align:'right'});doc.text(nm[0],m+24,y);doc.text(money(it.price),162,y,{align:'right'});doc.text(money(it.price*it.qty),W-m,y,{align:'right'});y+=4.1;
-      for(var q=1;q<nm.length;q++){if(y>274){doc.setTextColor(0);doc.addPage();y=16;head();doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}doc.text(nm[q],m+24,y);y+=4.1;}
+      doc.text(String(ii+1),m+13,y,{align:'right'});doc.text(String(it.qty),m+23,y,{align:'right'});doc.text(nm[0],m+26,y);doc.text(money(it.price),162,y,{align:'right'});doc.text(money(it.price*it.qty),W-m,y,{align:'right'});y+=4.1;
+      for(var q=1;q<nm.length;q++){if(y>274){doc.setTextColor(0);doc.addPage();y=16;head();doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}doc.text(nm[q],m+26,y);y+=4.1;}
     });
     doc.setTextColor(0);
     y+=0.6;doc.setDrawColor(210);doc.setLineWidth(0.1);doc.line(m,y,W-m,y);doc.setDrawColor(0);y+=4;
@@ -593,7 +595,7 @@ function receiptHtml(inv){
   if(s.logo)h+='<div class="c"><img src="'+s.logo+'" style="height:'+(nar?'16mm':'24mm')+';width:auto"></div>';
   h+='<div class="c b" style="font-size:'+(nar?'15px':'20px')+'">'+esc(co.company||'Restaurant')+'</div>';
   if(co.address)h+='<div class="c">'+esc(co.address).replace(/\n/g,'<br>')+'</div>';
-  var ct=[co.phone?'Ph: '+esc(co.phone):'',esc(co.email||'')].filter(Boolean).join(' &nbsp; ');if(ct)h+='<div class="c">'+ct+'</div>';
+  var hp=s.phone||co.phone,ct=[hp?'Ph: '+esc(hp):'',esc(co.email||'')].filter(Boolean).join(' &nbsp; ');if(ct)h+='<div class="c">'+ct+'</div>';
   if(co.gstin)h+='<div class="c b">GSTIN: '+esc(co.gstin)+'</div>';
   if(co.fssai)h+='<div class="c">FSSAI: '+esc(co.fssai)+'</div>';
   if(co.state)h+='<div class="c">State: '+esc(co.state)+'</div>';
@@ -601,9 +603,9 @@ function receiptHtml(inv){
   h+='<div><b>Invoice:</b> '+esc(inv.no)+'</div><div><b>Date:</b> '+dmyT(inv.date)+'</div><div><b>Customer:</b> '+esc(inv.customer.name)+'</div>';
   if(inv.customer.phone)h+='<div><b>Phone:</b> '+esc(inv.customer.phone)+'</div>';
   if(inv.customer.gstin)h+='<div><b>GSTIN:</b> '+esc(inv.customer.gstin)+'</div>';
-  h+='<hr><table><tr><th class="r" style="width:12%">Qty</th><th style="padding-left:4px">Item</th><th class="r">Price</th><th class="r">Amt</th></tr>';
-  inv.items.forEach(function(it){h+='<tr><td class="r">'+it.qty+'</td><td style="padding-left:4px">'+esc(it.name)+(it.hsn?'<br><small>HSN '+esc(it.hsn)+'</small>':'')+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(it.price*it.qty)+'</td></tr>';});
-  h+='</table><hr><table>';
+  h+='<hr><table><tr><th class="r" style="width:7%">#</th><th class="r" style="width:11%">Qty</th><th style="padding-left:4px">Item</th><th class="r">Price</th><th class="r">Amt</th></tr>';
+  inv.items.forEach(function(it,ii){h+='<tr><td class="r">'+(ii+1)+'</td><td class="r">'+it.qty+'</td><td style="padding-left:4px">'+esc(it.name)+(it.hsn?'<br><small>HSN '+esc(it.hsn)+'</small>':'')+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(it.price*it.qty)+'</td></tr>';});
+  h+='</table><hr><div><b>Items: '+inv.items.length+' &nbsp;&nbsp; Total Qty: '+inv.items.reduce(function(t,i){return t+i.qty;},0)+'</b></div><hr><table>';
   h+='<tr><td>'+(inv.inclusive?'Taxable value':'Sub total')+'</td><td class="r">'+money(inv.taxable)+'</td></tr>';
   inv.rates.forEach(function(r){if(r.rate>0)h+='<tr><td>CGST @'+(r.rate/2)+'%</td><td class="r">'+money(r.cgst)+'</td></tr><tr><td>SGST @'+(r.rate/2)+'%</td><td class="r">'+money(r.sgst)+'</td></tr>';});
   if(inv.roundoff)h+='<tr><td>Round off</td><td class="r">'+(inv.roundoff>0?'+':'')+inv.roundoff.toFixed(2)+'</td></tr>';
