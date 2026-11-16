@@ -11,11 +11,14 @@ A single-file restaurant billing app that runs in any modern browser, on desktop
 ## What it does
 
 - **Billing** – tap menu tiles (with pictures), set quantities, add customer or company name, phone and GSTIN.
-- **Invoices** – saved as PDF and printed on 2-inch (58 mm), 3-inch (80 mm) or A4 paper, with CGST/SGST, round-off and amount in words.
+- **Bill date** – pick any date (default today) when creating a bill.
+- **Invoices** – QFB logo on top, items in Qty / Item / Price columns, saved as PDF and printed on 2-inch (58 mm), 3-inch (80 mm) or A4 paper, with CGST/SGST, round-off and amount in words.
 - **Settings** – company name, GSTIN, address, FSSAI number, seal and signature, menu items (quick add + Excel/CSV import), invoice numbering, invoice folder.
 - **Reports** – daily, weekly, monthly, yearly (April–March) and custom periods, with an Excel export.
-- **Customer Summary** – one summary bill PDF per customer or company for a date or period.
-- **Master Excel** – `Master_Invoices.xlsx` (invoices, GST rate-wise, items) for GST filing.
+- **Corrections** – edit or cancel a past bill with a reason; a WhatsApp/SMS message is prepared for the hotel (or alert) number in Settings. A change log is kept.
+- **Customer Summary** – one numbered Summary Invoice (PDF) per customer or company for a date or period, listing every item of every invoice.
+- **Master Excel** – `Master_Invoices.xlsx` (invoices, GST rate-wise, items, change log, summary invoices) for GST filing.
+- **Menu in Excel** – import items from Excel/CSV and export the menu; every menu change also updates `Master_Menu.xlsx` in the invoice folder.
 
 ## Where your data lives
 
