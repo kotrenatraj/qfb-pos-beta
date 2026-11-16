@@ -97,6 +97,26 @@ tr.cx td{color:#9ca3af}tr.cx .no,tr.cx .amt{text-decoration:line-through}
 #modal .box{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
 #modal textarea{font-size:.9rem}
 a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
+/* ---- phone layout ---- */
+@media(max-width:700px){
+  #iOut table,#iOut tbody{display:block;width:100%}
+  #iOut thead{display:none}
+  #iOut tr{display:grid;grid-template-columns:1fr auto;gap:3px 10px;border:1px solid #e5e7eb;border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#fff}
+  #iOut td{display:block;padding:0;border:0;text-align:left}
+  #iOut td:nth-child(1){grid-column:1;grid-row:1;font-weight:700}
+  #iOut td:nth-child(6){grid-column:2;grid-row:1;text-align:right;font-size:1.05rem}
+  #iOut td:nth-child(2){grid-column:1/-1;color:#6b7280;font-size:.85rem}
+  #iOut td:nth-child(3){grid-column:1/-1}
+  #iOut td:nth-child(4),#iOut td:nth-child(5){display:none}
+  #iOut td:nth-child(7){grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  #iOut td:nth-child(7) .btn{flex:1 1 auto;min-height:36px}
+  .btn.sm{min-height:34px}
+  .qty button{width:36px;height:36px}
+  .x{min-width:34px;min-height:34px}
+  .ml .btn.sm{min-height:32px}
+}
+#billBar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;background:#1d4ed8;color:#fff;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));justify-content:space-between;align-items:center;font-weight:600;cursor:pointer;box-shadow:0 -2px 8px rgba(0,0,0,.2)}
+@media(max-width:899px){#billBar.show{display:flex}body.hasbar{padding-bottom:58px}body.hasbar #toast{bottom:70px}}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;max-width:92vw;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;font-size:.92rem}
 #toast.show{opacity:1}#toast.err{background:#b91c1c}
 .cust{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-top:10px}
@@ -117,6 +137,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
   </nav>
 </div>
 
+<div id="billBar" data-act="tobill"><span id="billBarTxt"></span><span>View bill ▸</span></div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
 <main>
 <!-- BILLING -->
@@ -127,7 +148,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
       <div id="cats" class="chips"></div>
       <div id="menuGrid" class="grid"></div>
     </div>
-    <div class="card">
+    <div class="card" id="billCard">
       <h2>Current Bill</h2>
       <div id="editBar" style="display:none"><b>✏️ Correcting invoice <span id="editTitle"></span></b>
         <label for="eReason" style="margin-top:6px">Reason for the correction (required)</label>
@@ -731,6 +752,10 @@ function renderBill(){
   if(c.roundoff)h+='<div><span>Round off</span><span>'+(c.roundoff>0?'+':'')+c.roundoff.toFixed(2)+'</span></div>';
   h+='<div class="g"><span>Total</span><span>₹'+money(c.total)+'</span></div>';
   $('billTotals').innerHTML=h;
+  var n=S.bill.reduce(function(t,i){return t+i.qty;},0);
+  $('billBarTxt').textContent=S.bill.length+' item'+(S.bill.length===1?'':'s')+' · ₹'+money(c.total);
+  $('billBar').className=(S.bill.length&&$('t-billing').className==='on')?'show':'';
+  document.body.className=$('billBar').className==='show'?'hasbar':'';
 }
 function renderCustList(){
   var seen={};S.invoices.forEach(function(i){seen[i.customer.name]=1;});
@@ -999,7 +1024,8 @@ var A={
   tab:function(t){
     ['billing','invoices','reports','customers','settings'].forEach(function(n){$('t-'+n).className=(n===t.dataset.v)?'on':'';});
     Array.prototype.forEach.call(document.querySelectorAll('#nav button'),function(b){b.className=(b===t)?'on':'';});
-    var v=t.dataset.v;if(v==='invoices')renderInvoices();if(v==='reports')renderReport();if(v==='customers')renderCustomers();if(v==='settings'){fillSettings();renderMenuList();}
+    var v=t.dataset.v;if($('billBar')){var on=v==='billing'&&S.bill.length;$('billBar').className=on?'show':'';document.body.className=on?'hasbar':'';}
+    if(v==='invoices')renderInvoices();if(v==='reports')renderReport();if(v==='customers')renderCustomers();if(v==='settings'){fillSettings();renderMenuList();}
   },
   cat:function(t){S.cat=t.dataset.v;renderMenu();},
   add:function(t){
@@ -1012,6 +1038,7 @@ var A={
   dec:function(t){var i=+t.dataset.i;S.bill[i].qty--;if(S.bill[i].qty<=0)S.bill.splice(i,1);renderBill();},
   rm:function(t){S.bill.splice(+t.dataset.i,1);renderBill();},
   clear:function(){S.bill=[];renderBill();},
+  tobill:function(){var e=$('billCard');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});},
   gen:function(t){generate(t.dataset.print==='1');},
   invprint:function(t){var i=findInv(t.dataset.no);if(i)printHtml(receiptHtml(i));},
   invpdf:async function(t){
