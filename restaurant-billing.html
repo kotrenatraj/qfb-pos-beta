@@ -134,9 +134,9 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
         <input id="eReason" placeholder="e.g. wrong quantity, customer changed order">
         <button class="btn sm" data-act="discardedit" style="margin-top:6px">Discard changes</button></div>
       <label for="bDate">Bill date</label><input id="bDate" type="date">
-      <input id="cName" list="custList" placeholder="Customer / Company name (optional)">
+      <input id="cName" list="custList" placeholder="Customer / Company name (optional)" autocomplete="off">
       <datalist id="custList"></datalist>
-      <div class="two"><input id="cPhone" placeholder="Phone"><input id="cGstin" placeholder="Customer GSTIN (optional)"></div>
+      <div class="two"><input id="cPhone" placeholder="Customer phone" autocomplete="off"><input id="cGstin" placeholder="Customer GSTIN (optional)"></div>
       <div id="billLines"></div>
       <div id="billTotals" class="tot"></div>
       <label for="paper" style="margin-top:10px">Paper size</label>
@@ -217,7 +217,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
       </div>
       <label>Company address</label><textarea id="sAddress" rows="3"></textarea>
       <div class="three">
-        <div><label>Hotel contact number (printed on bills)</label><input id="sPhone"></div>
+        <div><label>Hotel contact number (printed on bills)</label><input id="sPhone" type="tel" autocomplete="off"></div>
         <div><label>Email</label><input id="sEmail"></div>
         <div><label>FSSAI no. (optional)</label><input id="sFssai"></div>
       </div>
@@ -225,7 +225,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
         <div><label>Summary invoice prefix</label><input id="sSumPrefix"></div>
         <div><label>Next summary invoice number</label><input id="sSumNext" type="number" min="1"></div>
       </div>
-      <label>Alert number for bill changes (WhatsApp / SMS). Not printed on bills</label><input id="sAlert" type="tel" placeholder="Optional. Leave blank to use the Phone above">
+      <label>Alert number for bill changes (WhatsApp / SMS). Not printed on bills</label><input id="sAlert" type="tel" autocomplete="off" placeholder="Optional. Leave blank to use the Phone above">
       <p class="muted" style="margin:0 0 8px">When a past bill is edited or cancelled, a ready-made message is prepared for this number (or the hotel Phone if blank).</p>
       <div class="three">
         <div><label>State (place of supply)</label><input id="sState" placeholder="e.g. Karnataka (29)"></div>
@@ -396,7 +396,7 @@ function layoutInvoice(doc,inv,W){
   row('Invoice No:',inv.no,fs,true);
   row('Date:',dmyT(inv.date),fs,false);
   text('Customer: '+inv.customer.name,fs,false);
-  if(inv.customer.phone)text('Phone: '+inv.customer.phone,fs,false);
+  if(inv.customer.phone)text('Customer Phone: '+inv.customer.phone,fs,false);
   if(inv.customer.gstin)text('Customer GSTIN: '+inv.customer.gstin,fs,false);
   rule();
   var sx=m+(W<65?3.5:(W<100?4:5)),qx=sx+(W<65?6:(W<100?7:9)),ix=qx+1.8,ax=W-m,rx=W>=75?ax-(W<100?19:30):0,iw=(rx?rx-ix-(W<100?15:11):ax-ix-(W<100?13:16))-(W>=100?7:0);
@@ -448,66 +448,88 @@ function buildInvoicePdf(inv){
 /* ---------- PDF: customer summary invoice ---------- */
 function buildSummaryPdf(g,r,sno,sdate){
   var J=window.jspdf.jsPDF,doc=new J({unit:'mm',format:'a4'}),s=S.settings,W=210,m=15,y=14;
-  function t(txt,x,sz,b,al){doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(sz);doc.text(String(txt),x,y,al?{align:al}:undefined);}
-  function head(){
-    t('#',m,9,true);t('Invoice No',m+9,9,true);t('Date',m+55,9,true);
-    t('Taxable',118,9,true,'right');t(cgL,140,9,true,'right');t(sgL,162,9,true,'right');t('Total',W-m,9,true,'right');
-    y+=1.5;doc.setLineWidth(0.2);doc.line(m,y,W-m,y);y+=4.5;
-  }
-  if(s.logo){try{doc.addImage(s.logo,'PNG',W/2-12,y-6,24,24);}catch(e){}y+=28;}
-  t(s.company||'Restaurant',W/2,15,true,'center');y+=5.5;
-  if(s.address){doc.setFontSize(9);doc.splitTextToSize(s.address,150).forEach(function(l){t(l,W/2,9,false,'center');y+=4.2;});}
-  var c=[s.phone?'Ph: '+s.phone:'',s.email||''].filter(Boolean).join('   ');if(c){t(c,W/2,9,false,'center');y+=4.2;}
-  if(s.gstin){t('GSTIN: '+s.gstin,W/2,10,true,'center');y+=5;}
-  y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=7;
-  t('SUMMARY INVOICE',W/2,13,true,'center');y+=7;
-  if(sno){t('Summary Invoice No: '+sno,m,10,true);t('Date: '+dmy(sdate||new Date()),W-m,10,false,'right');y+=6;}
-  t('Customer: '+g.name,m,10,true);y+=5;
-  if(g.gstin){t('GSTIN: '+g.gstin,m,10,false);y+=5;}
-  if(g.phone){t('Phone: '+g.phone,m,10,false);y+=5;}
   var per=(r.a===r.b)?dmyKey(r.a):(dmyKey(r.a)+'  to  '+dmyKey(r.b));
-  t('Period: '+per,m,10,false);y+=8;
   var rmap={};g.invs.forEach(function(inv){inv.rates.forEach(function(q){var o=rmap[q.rate]||(rmap[q.rate]={rate:q.rate,taxable:0,cgst:0,sgst:0});o.taxable+=q.taxable;o.cgst+=q.cgst;o.sgst+=q.sgst;});});
   var rl=Object.keys(rmap).map(Number).filter(function(x){return x>0;}).sort(function(a,b){return a-b;}).map(function(k){return rmap[k];});
   var cgL=rl.length===1?'CGST @'+(rl[0].rate/2)+'%':'CGST',sgL=rl.length===1?'SGST @'+(rl[0].rate/2)+'%':'SGST';
+  function t(txt,x,sz,b,al){doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(sz);doc.text(String(txt),x,y,al?{align:al}:undefined);}
+  function head(){
+    t('#',m,9,true);t('Invoice No',m+9,9,true);t('Date',m+55,9,true);
+    t('Taxable',118,9,true,'right');t(cgL,131,8.5,true,'center');t(sgL,153,8.5,true,'center');t('Total',W-m,9,true,'right');
+    y+=1.5;doc.setLineWidth(0.2);doc.line(m,y,W-m,y);y+=4.5;
+  }
+  function ihead(){doc.setTextColor(120);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.text('#',m+13,y,{align:'right'});doc.text('QTY',m+23,y,{align:'right'});doc.text('ITEM',m+26,y);doc.text('PRICE',162,y,{align:'right'});doc.text('AMOUNT',W-m,y,{align:'right'});y+=3.8;doc.setTextColor(60);}
+  /* company header: printed at the top of EVERY page */
+  function top(first){
+    var ls=first?24:14;
+    if(s.logo){try{doc.addImage(s.logo,'PNG',W/2-ls/2,y-6,ls,ls);}catch(e){}y+=ls+4;}
+    t(s.company||'Restaurant',W/2,first?15:13,true,'center');y+=5.5;
+    if(s.address){doc.setFontSize(9);doc.splitTextToSize(s.address,150).forEach(function(l){t(l,W/2,9,false,'center');y+=4.2;});}
+    var c=[s.phone?'Ph: '+s.phone:'',s.email||''].filter(Boolean).join('   ');if(c){t(c,W/2,9,false,'center');y+=4.2;}
+    if(s.gstin){t('GSTIN: '+s.gstin,W/2,10,true,'center');y+=5;}
+    y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=first?7:5.5;
+  }
+  function newPage(inItems){
+    doc.setTextColor(0);doc.addPage();y=14;top(false);
+    t('SUMMARY INVOICE'+(sno?'  '+sno:'')+'   |   '+g.name+'   |   '+per,m,9,true);y+=6;
+    head();if(inItems){ihead();}
+  }
+  function need(h){if(y+h>278)newPage(false);}
+  top(true);
+  t('SUMMARY INVOICE',W/2,13,true,'center');y+=7;
+  if(sno){t('Summary Invoice No: '+sno,m,10,true);t('Date: '+dmy(sdate||new Date()),W-m,10,false,'right');y+=6;}
+  t('Customer: '+g.name,m,10,true);y+=5;
+  if(g.gstin){t('Customer GSTIN: '+g.gstin,m,10,false);y+=5;}
+  if(g.phone){t('Customer Phone: '+g.phone,m,10,false);y+=5;}
+  t('Period: '+per,m,10,false);y+=8;
   head();
   var T={taxable:0,cgst:0,sgst:0,total:0};
   g.invs.forEach(function(inv,i){
-    if(y>272){doc.addPage();y=16;head();}
-    if(y>252){doc.addPage();y=16;head();}
+    need(24);
     t(i+1,m,9,true);t(inv.no,m+9,9,true);t(dmy(inv.date),m+55,9,true);
     t(money(inv.taxable),118,9,true,'right');t(money(inv.cgst),140,9,true,'right');t(money(inv.sgst),162,9,true,'right');t(money(inv.total),W-m,9,true,'right');
     T.taxable+=inv.taxable;T.cgst+=inv.cgst;T.sgst+=inv.sgst;T.total+=inv.total;y+=4.8;
-    function ihead(){doc.setTextColor(120);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.text('#',m+13,y,{align:'right'});doc.text('QTY',m+23,y,{align:'right'});doc.text('ITEM',m+26,y);doc.text('PRICE',162,y,{align:'right'});doc.text('AMOUNT',W-m,y,{align:'right'});y+=3.8;}
-    ihead();doc.setTextColor(60);
+    ihead();
     inv.items.forEach(function(it,ii){
       doc.setFont('helvetica','normal');doc.setFontSize(8.5);
       var nm=doc.splitTextToSize(String(it.name),97);
-      if(y>272){doc.setTextColor(0);doc.addPage();y=16;head();ihead();doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}
+      if(y+4.1>278){newPage(true);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}
+      doc.setTextColor(60);
       doc.text(String(ii+1),m+13,y,{align:'right'});doc.text(String(it.qty),m+23,y,{align:'right'});doc.text(nm[0],m+26,y);doc.text(money(it.price),162,y,{align:'right'});doc.text(money(it.price*it.qty),W-m,y,{align:'right'});y+=4.1;
-      for(var q=1;q<nm.length;q++){if(y>274){doc.setTextColor(0);doc.addPage();y=16;head();doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}doc.text(nm[q],m+26,y);y+=4.1;}
+      for(var q=1;q<nm.length;q++){if(y+4.1>278){newPage(true);}doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(nm[q],m+26,y);y+=4.1;}
     });
     doc.setTextColor(0);
     y+=0.6;doc.setDrawColor(210);doc.setLineWidth(0.1);doc.line(m,y,W-m,y);doc.setDrawColor(0);y+=4;
   });
-  if(y>250){doc.addPage();y=16;}
+  need(22);
   y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=5.5;
   t('TOTAL ('+g.invs.length+' invoices)',m,10,true);
   t(money(T.taxable),118,10,true,'right');t(money(T.cgst),140,10,true,'right');t(money(T.sgst),162,10,true,'right');t(money(T.total),W-m,10,true,'right');y+=8;
   if(rl.length>1){
-    if(y>255){doc.addPage();y=16;}
+    need(8+rl.length*4.6);
     t('GST rate-wise',m,9,true);y+=4.5;
     rl.forEach(function(q){t('GST '+q.rate+'%  (CGST @'+(q.rate/2)+'% + SGST @'+(q.rate/2)+'%)',m,9,false);t(money(q.taxable),118,9,false,'right');t(money(q.cgst),140,9,false,'right');t(money(q.sgst),162,9,false,'right');y+=4.6;});
     y+=3;
   }
+  need(16);
   t('Amount payable: Rs. '+money(T.total),m,12,true);y+=6;
   doc.setFontSize(9);doc.splitTextToSize('Rupees '+inWords(T.total)+' Only',W-2*m).forEach(function(l){t(l,m,9,false);y+=4.2;});
   y+=6;
-  if(y>245){doc.addPage();y=20;}
-  var sy=y;
-  if(s.seal){try{doc.addImage(s.seal,'PNG',m,sy,28,28);}catch(e){}}
-  if(s.sign){try{doc.addImage(s.sign,'PNG',W-m-45,sy+8,45,18);}catch(e){}}
-  if(s.seal||s.sign){y=sy+31;t('Authorised Signatory',W-m,9,false,'right');}
+  if(s.seal||s.sign){
+    need(34);
+    var sy=y;
+    if(s.seal){try{doc.addImage(s.seal,'PNG',m,sy,28,28);}catch(e){}}
+    if(s.sign){try{doc.addImage(s.sign,'PNG',W-m-45,sy+8,45,18);}catch(e){}}
+    y=sy+31;t('Authorised Signatory',W-m,9,false,'right');
+  }
+  /* footer on every page */
+  var n=doc.getNumberOfPages();
+  for(var pg=1;pg<=n;pg++){
+    doc.setPage(pg);doc.setTextColor(110);doc.setFont('helvetica','normal');doc.setFontSize(8);
+    doc.text('This is a computer generated invoice.',W/2,290,{align:'center'});
+    doc.text('Page '+pg+' of '+n,W-m,290,{align:'right'});
+  }
+  doc.setTextColor(0);
   return doc;
 }
 
@@ -601,7 +623,7 @@ function receiptHtml(inv){
   if(co.state)h+='<div class="c">State: '+esc(co.state)+'</div>';
   h+='<hr><div class="c b">TAX INVOICE</div>'+(inv.status==='cancelled'?'<div class="c b big">*** CANCELLED ***</div>':'')+'<hr>';
   h+='<div><b>Invoice:</b> '+esc(inv.no)+'</div><div><b>Date:</b> '+dmyT(inv.date)+'</div><div><b>Customer:</b> '+esc(inv.customer.name)+'</div>';
-  if(inv.customer.phone)h+='<div><b>Phone:</b> '+esc(inv.customer.phone)+'</div>';
+  if(inv.customer.phone)h+='<div><b>Customer Phone:</b> '+esc(inv.customer.phone)+'</div>';
   if(inv.customer.gstin)h+='<div><b>GSTIN:</b> '+esc(inv.customer.gstin)+'</div>';
   h+='<hr><table><tr><th class="r" style="width:7%">#</th><th class="r" style="width:11%">Qty</th><th style="padding-left:4px">Item</th><th class="r">Price</th><th class="r">Amt</th></tr>';
   inv.items.forEach(function(it,ii){h+='<tr><td class="r">'+(ii+1)+'</td><td class="r">'+it.qty+'</td><td style="padding-left:4px">'+esc(it.name)+(it.hsn?'<br><small>HSN '+esc(it.hsn)+'</small>':'')+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(it.price*it.qty)+'</td></tr>';});
