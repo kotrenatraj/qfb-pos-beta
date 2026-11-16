@@ -453,9 +453,14 @@ function buildSummaryPdf(g,r,sno,sdate){
   var rl=Object.keys(rmap).map(Number).filter(function(x){return x>0;}).sort(function(a,b){return a-b;}).map(function(k){return rmap[k];});
   var cgL=rl.length===1?'CGST @'+(rl[0].rate/2)+'%':'CGST',sgL=rl.length===1?'SGST @'+(rl[0].rate/2)+'%':'SGST';
   function t(txt,x,sz,b,al){doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(sz);doc.text(String(txt),x,y,al?{align:al}:undefined);}
+  /* centre the CGST / SGST headings over the block of figures beneath them */
+  function wd(str,sz){doc.setFont('helvetica','bold');doc.setFontSize(sz);return doc.getTextWidth(String(str));}
+  var cgW=0,sgW=0;
+  g.invs.forEach(function(i){cgW=Math.max(cgW,wd(money(i.cgst),9));sgW=Math.max(sgW,wd(money(i.sgst),9));});
+  var cgC=140-cgW/2,sgC=162-sgW/2;
   function head(){
     t('#',m,9,true);t('Invoice No',m+9,9,true);t('Date',m+55,9,true);
-    t('Taxable',118,9,true,'right');t(cgL,131,8.5,true,'center');t(sgL,153,8.5,true,'center');t('Total',W-m,9,true,'right');
+    t('Taxable',118,9,true,'right');t(cgL,cgC,8.5,true,'center');t(sgL,sgC,8.5,true,'center');t('Total',W-m,9,true,'right');
     y+=1.5;doc.setLineWidth(0.2);doc.line(m,y,W-m,y);y+=4.5;
   }
   function ihead(){doc.setTextColor(120);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.text('#',m+13,y,{align:'right'});doc.text('QTY',m+23,y,{align:'right'});doc.text('ITEM',m+26,y);doc.text('PRICE',162,y,{align:'right'});doc.text('AMOUNT',W-m,y,{align:'right'});y+=3.8;doc.setTextColor(60);}
@@ -469,12 +474,8 @@ function buildSummaryPdf(g,r,sno,sdate){
     if(s.gstin){t('GSTIN: '+s.gstin,W/2,10,true,'center');y+=5;}
     y+=1;doc.setLineWidth(0.4);doc.line(m,y,W-m,y);y+=first?7:5.5;
   }
-  function newPage(inItems){
-    doc.setTextColor(0);doc.addPage();y=14;top(false);
-    t('SUMMARY INVOICE'+(sno?'  '+sno:'')+'   |   '+g.name+'   |   '+per,m,9,true);y+=6;
-    head();if(inItems){ihead();}
-  }
-  function need(h){if(y+h>278)newPage(false);}
+  function newPage(){doc.setTextColor(0);doc.addPage();y=14;top(false);}
+  function need(h){if(y+h>278)newPage();}
   top(true);
   t('SUMMARY INVOICE',W/2,13,true,'center');y+=7;
   if(sno){t('Summary Invoice No: '+sno,m,10,true);t('Date: '+dmy(sdate||new Date()),W-m,10,false,'right');y+=6;}
@@ -493,10 +494,10 @@ function buildSummaryPdf(g,r,sno,sdate){
     inv.items.forEach(function(it,ii){
       doc.setFont('helvetica','normal');doc.setFontSize(8.5);
       var nm=doc.splitTextToSize(String(it.name),97);
-      if(y+4.1>278){newPage(true);doc.setFont('helvetica','normal');doc.setFontSize(8.5);}
+      if(y+4.1>278){newPage();doc.setFont('helvetica','normal');doc.setFontSize(8.5);}
       doc.setTextColor(60);
       doc.text(String(ii+1),m+13,y,{align:'right'});doc.text(String(it.qty),m+23,y,{align:'right'});doc.text(nm[0],m+26,y);doc.text(money(it.price),162,y,{align:'right'});doc.text(money(it.price*it.qty),W-m,y,{align:'right'});y+=4.1;
-      for(var q=1;q<nm.length;q++){if(y+4.1>278){newPage(true);}doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(nm[q],m+26,y);y+=4.1;}
+      for(var q=1;q<nm.length;q++){if(y+4.1>278){newPage();}doc.setTextColor(60);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(nm[q],m+26,y);y+=4.1;}
     });
     doc.setTextColor(0);
     y+=0.6;doc.setDrawColor(210);doc.setLineWidth(0.1);doc.line(m,y,W-m,y);doc.setDrawColor(0);y+=4;
