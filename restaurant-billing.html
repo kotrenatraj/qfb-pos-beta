@@ -378,7 +378,9 @@ function apiRaw(method,path,body,isBlob){
     return j;});});
 }
 function setSync(ok,msg){var e=typeof document!=='undefined'&&document.getElementById('srvStat');if(!e)return;e.textContent=ok?'● Shared data':'● '+(msg||'Offline');e.style.color=ok?'#86efac':'#fecaca';}
-function folderLabel(){return SERVER?'the server':'"'+S.settings.folderName+'"';}
+function dirName(){if(!SERVER)return S.settings.folderName||'';try{return localStorage.getItem('rb_dirname')||'';}catch(e){return '';}}
+function setDirName(n){if(!SERVER){S.settings.folderName=n;save('settings',S.settings);return;}try{localStorage.setItem('rb_dirname',n);}catch(e){}}
+function folderLabel(){return SERVER?(dirName()?'the server and "'+dirName()+'"':'the server'):'"'+dirName()+'"';}
 function enqueue(fn){
   PENDING++;
   Q=Q.then(fn).then(function(){PENDING--;setSync(true);},function(e){
@@ -718,7 +720,9 @@ function download(blob,name){var a=document.createElement('a');a.href=URL.create
 function idb(){return new Promise(function(res,rej){var r=indexedDB.open('rb_files',1);r.onupgradeneeded=function(){r.result.createObjectStore('kv');};r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
 function idbGet(k){return idb().then(function(db){return new Promise(function(res,rej){var q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};});});}
 function idbSet(k,v){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+var TEST_DIR=null;
 async function getDir(){
+  if(TEST_DIR)return TEST_DIR;
   if(!window.showDirectoryPicker)return null;
   var h=await idbGet('dir');if(!h)return null;
   var p=await h.queryPermission({mode:'readwrite'});
@@ -726,8 +730,14 @@ async function getDir(){
   return p==='granted'?h:null;
 }
 async function saveFile(name,blob,force,alsoDownload){
-  if(SERVER){await apiRaw('PUT','/api/files/'+encodeURIComponent(name),blob,true);if(alsoDownload)download(blob,name);return true;}
   var dir=null;try{dir=await getDir();}catch(e){dir=null;}
+  if(SERVER){
+    await apiRaw('PUT','/api/files/'+encodeURIComponent(name),blob,true);
+    var copied=false;
+    if(dir){try{var sf=await dir.getFileHandle(name,{create:true});var sw=await sf.createWritable();await sw.write(blob);await sw.close();copied=true;}catch(e){copied=false;}}
+    if(alsoDownload&&!copied)download(blob,name);
+    return true;
+  }
   if(dir){var fh=await dir.getFileHandle(name,{create:true});var w=await fh.createWritable();await w.write(blob);await w.close();return true;}
   if(force)download(blob,name);
   return false;
@@ -1071,7 +1081,7 @@ function fillSettings(){
   var s=S.settings;
   $('sCompany').value=s.company;$('sGstin').value=s.gstin;$('sAddress').value=s.address;$('sPhone').value=s.phone;$('sAlert').value=s.alertPhone||'';$('sSumPrefix').value=s.sumPrefix;$('sSumNext').value=s.sumNext;$('sEmail').value=s.email;$('sFssai').value=s.fssai;
   $('sState').value=s.state;$('sPrefix').value=s.prefix;$('sNext').value=s.nextNo;$('sPaper').value=s.paper;$('sDefGst').value=s.defGst;$('sIncl').checked=!!s.inclusive;
-  if(SERVER){$('folderName').textContent='the server (automatic)';$('pickBtnBox').style.display='none';$('folderHelp').innerHTML='PDFs and the master Excel files are saved on the server automatically, so every device sees the same files. <a href="/files" target="_blank" rel="noopener">Open saved files</a>';}
+  if(SERVER){$('folderName').textContent=dirName()?('server + "'+dirName()+'" on this device'):'the server only';$('folderHelp').innerHTML='PDFs and the master Excel files are always saved on the server, so every device sees the same files (<a href="/files" target="_blank" rel="noopener">open saved files</a>). You can also choose a folder on <b>this</b> computer to get a second copy there (Chrome / Edge on a computer; each device picks its own).';}
   else{$('folderName').textContent=s.folderName||'not chosen (downloads folder will be used)';
     if(typeof window!=='undefined'&&!window.showDirectoryPicker)$('folderHelp').innerHTML='<b style="color:#b91c1c">This browser cannot pick a folder.</b> Open the app in Chrome or Edge on a computer (not Firefox, Safari or a phone browser). Until then, every PDF goes to your Downloads folder.';}
   setPrev('logoPrev',s.logo);setPrev('sealPrev',s.seal);setPrev('signPrev',s.sign);
@@ -1236,7 +1246,7 @@ var A={
   savesettings:saveSettingsForm,
   pickfolder:async function(){
     if(!window.showDirectoryPicker){toast('This browser cannot pick a folder (use Chrome or Edge on a computer). Files will go to your Downloads folder.',true);return;}
-    try{var h=await window.showDirectoryPicker({mode:'readwrite'});await idbSet('dir',h);S.settings.folderName=h.name;save('settings',S.settings);fillSettings();toast('Invoices will be saved in "'+h.name+'".');}
+    try{var h=await window.showDirectoryPicker({mode:'readwrite'});await idbSet('dir',h);setDirName(h.name);fillSettings();toast('Invoices will be saved in "'+h.name+'".');}
     catch(e){if(e.name!=='AbortError')toast(e.message,true);}
   },
   rmlogo:function(){S.settings.logo='';save('settings',S.settings);fillSettings();},
@@ -1361,7 +1371,7 @@ function init(){
   fillSettings();renderMenu();renderBill();renderCustList();renderMenuList();resetForm();migrateImages();
 }
 
-var api={parseMenuRows:parseMenuRows,calc:calc,inWords:inWords,range:range,buildInvoicePdf:buildInvoicePdf,buildSummaryPdf:buildSummaryPdf,issueSummary:issueSummary,buildMasterBlob:buildMasterBlob,buildMenuBlob:buildMenuBlob,cleanDataUrl:cleanDataUrl,receiptHtml:receiptHtml,state:S};
+var api={setDir:function(h){TEST_DIR=h;},parseMenuRows:parseMenuRows,calc:calc,inWords:inWords,range:range,buildInvoicePdf:buildInvoicePdf,buildSummaryPdf:buildSummaryPdf,issueSummary:issueSummary,buildMasterBlob:buildMasterBlob,buildMenuBlob:buildMenuBlob,cleanDataUrl:cleanDataUrl,receiptHtml:receiptHtml,state:S};
 if(typeof window!=='undefined')window.__rb=api;
 async function boot(){
   bindClicks();

@@ -61,8 +61,14 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   let st = await api('/api/state'); ok(st.invoices.length === 2 && st.settings.nextNo === 3, 'server holds both invoices and the counter is 3');
   const fl = await (await fetch(BASE + '/files', { headers: { cookie: global.CK } })).text(); ok(/INV-0001\.pdf/.test(fl) && /INV-0002\.pdf/.test(fl) && /Master_Invoices\.xlsx/.test(fl), 'PDFs and the master Excel were saved on the server');
 
+  // a device with a chosen local folder keeps a second copy; the server copy is still made
+  const wrote = []; A.w.__rb.setDir({ getFileHandle: async n => ({ createWritable: async () => ({ write: async () => wrote.push(n), close: async () => {} }) }) });
+  await A.bill('Folder Co', /Idli/); ok(await A.until(() => A.S().invoices.length === 3), 'bill created on the device that has a local folder chosen');
+  await sleep(300); const flist = await (await fetch(BASE + '/files', { headers: { cookie: global.CK } })).text();
+  ok(wrote.some(n => /^INV-0003\.pdf$/.test(n)) && wrote.includes('Master_Invoices.xlsx') && /INV-0003\.pdf/.test(flist), 'the PDF and master Excel are written to the chosen local folder AND to the server');
+  A.w.__rb.setDir(null);
   // device C signs in now (polls very slowly, so it will hold a snapshot)
-  C = await device('C', 600000); await C.login(); ok(C.S().invoices.length === 2 && C.tiles().some(t => /Lassi/.test(t.textContent)), 'a third device signing in later gets the full shared data');
+  C = await device('C', 600000); await C.login(); ok(C.S().invoices.length === 3 && C.tiles().some(t => /Lassi/.test(t.textContent)), 'a third device signing in later gets the full shared data');
   // edit on B -> visible on A
   B.click(B.nav()[1]); await sleep(100);
   const acme = B.invRows().find(r => /Acme/.test(r.textContent)); B.click(acme.querySelector('[data-act=invedit]'));
@@ -102,7 +108,7 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
 
   // Settings save must not roll back counters
   A.click(A.nav()[4]); await sleep(100); A.$('sPhone').value = '080 5555 1111'; A.click(A.d.querySelector('[data-act=savesettings]')); await sleep(400);
-  st = await api('/api/state'); ok(st.settings.phone === '080 5555 1111' && st.settings.nextNo === 3 && st.settings.sumNext === 2, 'saving Settings on one device keeps the invoice and summary counters');
+  st = await api('/api/state'); ok(st.settings.phone === '080 5555 1111' && st.settings.nextNo === 4 && st.settings.sumNext === 2, 'saving Settings on one device keeps the invoice and summary counters');
   ok(await B.until(() => B.S().settings.phone === '080 5555 1111'), 'the new hotel phone reaches the other device');
 
   // server goes down
@@ -113,7 +119,7 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   await start();
   ok(await B.until(() => /Shared data/.test(B.$('srvStat').textContent), 8000), 'status returns to "Shared data" once the server is back');
   B.click(B.d.querySelector('[data-act=gen]:not([data-print])')); ok(await B.until(() => B.S().invoices.length === before + 1), 'retrying the same bill now works');
-  st = await api('/api/state'); ok(st.invoices.map(i => i.no).sort().join() === 'INV-0001,INV-0002,INV-0003', 'numbering continues without duplicates (INV-0003)');
+  st = await api('/api/state'); ok(st.invoices.map(i => i.no).sort().join() === 'INV-0001,INV-0002,INV-0003,INV-0004', 'numbering continues without duplicates (INV-0004)');
 
   const errs = [A, B, C].flatMap(x => x.errors); ok(errs.length === 0, 'no JavaScript errors on any device' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   mock.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
