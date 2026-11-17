@@ -1246,8 +1246,19 @@ var A={
   savesettings:saveSettingsForm,
   pickfolder:async function(){
     if(!window.showDirectoryPicker){toast('This browser cannot pick a folder (use Chrome or Edge on a computer). Files will go to your Downloads folder.',true);return;}
-    try{var h=await window.showDirectoryPicker({mode:'readwrite'});await idbSet('dir',h);setDirName(h.name);fillSettings();toast('Invoices will be saved in "'+h.name+'".');}
-    catch(e){if(e.name!=='AbortError')toast(e.message,true);}
+    var h;
+    try{h=await window.showDirectoryPicker({mode:'readwrite',id:'qfbinvoices',startIn:'documents'});}
+    catch(e){
+      if(e&&e.name==='AbortError')return;
+      var m=String(e&&e.message||e);
+      if(/cross.?origin|sub.?frame/i.test(m)||(window.top!==window.self))toast('A browser cannot pick a folder inside an embedded preview. Open the app directly in its own Chrome or Edge tab (the saved HTML file or the server address), then try again.',true);
+      else if(e&&e.name==='SecurityError'||/system files|not allowed/i.test(m))toast('Chrome does not allow that folder (Downloads, Documents, Desktop, or a whole drive). Create a new folder inside Documents, for example "QFB Invoices", and choose that one.',true);
+      else if(/gesture/i.test(m))toast('Press the Choose folder button again.',true);
+      else toast('Could not open the folder picker: '+m,true);
+      return;
+    }
+    try{await idbSet('dir',h);setDirName(h.name);fillSettings();toast('Invoices will be saved in "'+h.name+'".');}
+    catch(e){toast('The folder was chosen but this browser could not remember it ('+(e&&e.message||e)+'). Try opening the app from a normal tab, not a private window.',true);}
   },
   rmlogo:function(){S.settings.logo='';save('settings',S.settings);fillSettings();},
   deflogo:function(){S.settings.logo=DEFAULT_LOGO;save('settings',S.settings);fillSettings();},
