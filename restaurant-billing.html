@@ -919,6 +919,11 @@ async function generate(print){
 }
 
 /* ---------- corrections: edit / cancel + owner notification ---------- */
+var ASK=null;
+function askConfirm(title,msg,yesLabel,fn,danger){
+  ASK=fn;$('modalBox').innerHTML='<h2 style="margin-top:0">'+esc(title)+'</h2><p class="muted" style="margin-top:0">'+esc(msg)+'</p><div class="btns"><button class="btn '+(danger===false?'pri':'bad')+'" data-act="askyes">'+esc(yesLabel)+'</button><button class="btn" data-act="modalclose">Cancel</button></div>';
+  $('modal').className='show';
+}
 function closeModal(){$('modal').className='';$('modalBox').innerHTML='';}
 function normPhone(p){var d=String(p||'').replace(/\D/g,'');if(d.length===11&&d.charAt(0)==='0')d=d.slice(1);if(d.length===10)d='91'+d;return d.length>=11?d:'';}
 function alertNumber(){return normPhone(S.settings.alertPhone)||normPhone(S.settings.phone);}
@@ -1191,7 +1196,8 @@ var A={
   },
   discardedit:function(){resetBillForm();$('paper').value=S.settings.paper;renderBill();toast('Changes discarded.');},
   invcancel:function(t){showCancel(t.dataset.no);},
-  modalclose:function(){closeModal();},
+  modalclose:function(){ASK=null;closeModal();},
+  askyes:function(){var f=ASK;ASK=null;closeModal();if(f)f();},
   cancelgo:async function(t){
     var inv=findInv(t.dataset.no),reason=($('cReason')||{value:''}).value.trim();
     if(!inv||inv.status==='cancelled')return;
@@ -1285,9 +1291,11 @@ var A={
     toast('Imported: '+added+' new, '+updated+' updated.');
   },
   delitem:function(t){
-    var dm=S.menu.filter(function(m){return m.id===t.dataset.id;})[0];if(!confirm('Delete '+(dm?dm.name:'this item')+' from the menu?'))return;
-    if($('mFind'))$('mFind').value='';
-    S.menu=S.menu.filter(function(m){return m.id!==t.dataset.id;});save('menu',S.menu);renderMenuList();renderMenu();syncMenuFile();
+    var id=t.dataset.id,dm=S.menu.filter(function(m){return m.id===id;})[0];if(!dm)return;
+    askConfirm('Delete '+dm.name+'?','This removes it from the menu. Bills already made are not affected.','Yes, delete',function(){
+      if($('mFind'))$('mFind').value='';
+      S.menu=S.menu.filter(function(m){return m.id!==id;});save('menu',S.menu);renderMenuList();renderMenu();syncMenuFile();toast(dm.name+' deleted.');
+    });
   },
   backup:function(){
     var d={v:1,settings:S.settings,menu:S.menu,invoices:S.invoices,summaries:S.summaries};
@@ -1336,10 +1344,11 @@ function init(){
     var f=this.files[0];if(!f)return;var self=this;
     var fr=new FileReader();fr.onload=function(){
       try{var d=JSON.parse(fr.result);if(!d.settings||!d.menu||!d.invoices)throw new Error('Not a valid backup file');
-        if(!confirm('Replace all current data with this backup?'))return;
-        if(SERVER){apiRaw('POST','/api/restore',{settings:d.settings,menu:d.menu,invoices:d.invoices,summaries:d.summaries||[]}).then(function(){return refreshFromServer();}).then(function(){fillSettings();renderMenuList();toast('Backup restored on the server.');},function(e){toast('Restore failed: '+e.message,true);});self.value='';return;}
+        askConfirm('Replace all current data?','Everything in this app will be replaced by the contents of the backup file.','Yes, restore',function(){
+        if(SERVER){apiRaw('POST','/api/restore',{settings:d.settings,menu:d.menu,invoices:d.invoices,summaries:d.summaries||[]}).then(function(){return refreshFromServer();}).then(function(){fillSettings();renderMenuList();toast('Backup restored on the server.');},function(e){toast('Restore failed: '+e.message,true);});return;}
         S.settings=Object.assign(S.settings,d.settings);S.menu=d.menu;S.invoices=d.invoices;S.summaries=d.summaries||[];save('summaries',S.summaries);save('settings',S.settings);save('menu',S.menu);save('invoices',S.invoices);
         fillSettings();renderMenu();renderMenuList();renderBill();renderCustList();toast('Backup restored.');
+        });
       }catch(e){toast('Restore failed: '+e.message,true);}
       self.value='';
     };fr.readAsText(f);
