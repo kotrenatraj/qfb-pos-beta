@@ -45,7 +45,6 @@ button{font-family:inherit}
 .chip.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;max-height:62vh;overflow-y:auto}
 .tile{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;user-select:none}
-.tile{position:relative}.tdel{position:absolute;top:4px;right:4px;z-index:2;background:#b91c1c;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:.8rem}
 .tile:active{transform:scale(.97)}
 .tile:hover{border-color:#1d4ed8}
 .tile img,.tile .ph{width:100%;height:64px;object-fit:cover;display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700}
@@ -150,7 +149,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
 <section id="t-billing" class="on">
   <div class="split">
     <div class="card">
-      <div class="row" style="flex-wrap:nowrap;align-items:center;margin-bottom:8px"><input id="q" type="search" placeholder="Search menu…" style="flex:1;margin:0"><button class="chip" id="manBtn" data-act="manage" title="Edit or delete menu items">✏️ Edit items</button></div>
+      <input id="q" type="search" placeholder="Search menu…">
       <div id="cats" class="chips"></div>
       <div id="menuGrid" class="grid"></div>
     </div>
@@ -284,6 +283,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
 
     <div class="card">
       <h2>Menu Items</h2>
+      <div class="mrow" id="mFindRow" style="margin-bottom:10px;align-items:center"><input id="mFind" list="itemList" placeholder="Change or delete an item: type its name…" autocomplete="off"><datalist id="itemList"></datalist><button class="btn" data-act="findedit">✏️ Edit</button><button class="btn bad" data-act="finddel">🗑 Delete</button></div>
       <div id="mForm" class="mform">
         <div class="mrow">
           <input id="mName" placeholder="Item name, e.g. Masala Dosa" autocomplete="off">
@@ -315,7 +315,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
       <input id="mFile" type="file" accept=".xlsx,.xls,.csv" style="display:none">
       <div id="impPrev"></div>
 
-      <p class="muted" style="margin:10px 0 0">New items appear in <b>Billing</b> straight away. To change or delete an item, use <b>✏️ Edit items</b> on the Billing screen.</p>
+      <p class="muted" style="margin:10px 0 0">New items appear in <b>Billing</b> straight away.</p>
     </div>
 
     <div class="card">
@@ -360,7 +360,7 @@ var S={
   settings:Object.assign(defaultSettings(),load('settings',{})),
   menu:load('menu',null),
   invoices:load('invoices',[]),
-  summaries:load('summaries',[]),bill:[],chg:null,cat:'',q:'',manage:false,edit:null,mImg:'',imp:null
+  summaries:load('summaries',[]),bill:[],chg:null,cat:'',q:'',edit:null,mImg:'',imp:null
 };
 if(!S.menu){S.menu=sample();try{localStorage.setItem('rb_menu',JSON.stringify(S.menu));}catch(e){}}
 /* ---------- shared-server mode (used when the app is opened from the QFB POS server) ---------- */
@@ -846,13 +846,12 @@ function renderMenu(){
   if(S.cat&&cats.indexOf(S.cat)<0)S.cat='';
   $('cats').innerHTML=cats.map(function(c){return '<button class="chip'+(c===S.cat?' on':'')+'" data-act="cat" data-v="'+esc(c)+'">'+esc(c)+'</button>';}).join('');
   $('cats').style.display=cats.length?'':'none';
-  $('manBtn').className='chip'+(S.manage?' on':'');$('manBtn').textContent=S.manage?'✔ Done':'✏️ Edit items';
   var q=S.q.toLowerCase().trim(),list;
   if(q)list=S.menu.filter(function(m){return (m.name+' '+(m.cat||'')).toLowerCase().indexOf(q)>=0;});
   else if(S.cat)list=S.menu.filter(function(m){return m.cat===S.cat;});
   else list=topItems();
   var hint=(!q&&!S.cat&&S.menu.length>list.length)?'<p class="muted" style="grid-column:1/-1;margin:0">Showing top items. Tap a category above, or search, to see the rest.</p>':'';
-  $('menuGrid').innerHTML=list.length?hint+list.map(function(m){return '<div class="tile" data-act="'+(S.manage?'edititem':'add')+'" data-id="'+m.id+'">'+(S.manage?'<span class="tdel" data-act="delitem" data-id="'+m.id+'">✕</span>':'')+tile(m)+'<div class="tn">'+esc(m.name)+'</div><div class="tp">₹'+money(m.price)+'</div></div>';}).join(''):'<p class="muted">No items found. Add menu items in Settings.</p>';
+  $('menuGrid').innerHTML=list.length?hint+list.map(function(m){return '<div class="tile" data-act="add" data-id="'+m.id+'">'+tile(m)+'<div class="tn">'+esc(m.name)+'</div><div class="tp">₹'+money(m.price)+'</div></div>';}).join(''):'<p class="muted">No items found. Add menu items in Settings.</p>';
 }
 function renderBill(){
   var c=calc(S.bill,S.chg?S.chg.inclusive:S.settings.inclusive);
@@ -943,17 +942,17 @@ function showNotify(no){
       '<a class="btn pri" id="nSms" href="sms:+'+num+'?body='+enc+'" data-act="notified" data-via="SMS" data-no="'+esc(no)+'">SMS</a></div>';
   }else h+='<p class="muted" style="color:#b91c1c">No valid phone number in Settings (Phone or Alert number). Add one so this can be sent; you can still copy the message.</p>';
   h+='<div class="btns"><button class="btn" data-act="copymsg" data-no="'+esc(no)+'">Copy message</button><button class="btn" data-act="notifyclose">Close</button></div>';
-  if(SERVER&&S.wa&&num&&!e.notified)h=h.replace('<textarea','<p id="nAuto" class="muted" style="margin:0 0 8px">⏳ Sending to the owner on WhatsApp…</p><textarea');
+  if(SERVER&&S.wa&&!e.notified)h=h.replace('<textarea','<p id="nAuto" class="muted" style="margin:0 0 8px">⏳ Sending the alert to the owner…</p><textarea');
   $('modalBox').innerHTML=h;$('modal').className='show';
-  if(SERVER&&S.wa&&num&&!e.notified)autoNotify(no,msg);
+  if(SERVER&&S.wa&&!e.notified)autoNotify(no,msg);
 }
 function autoNotify(no,msg){
   apiRaw('POST','/api/notify',{text:msg}).then(function(r){
     var inv=findInv(no),e=inv&&lastChange(inv);
-    if(e){e.notified=true;e.via='WhatsApp (auto)';e.notifiedAt=new Date().toISOString();save('invoices',S.invoices);renderInvoices();}
-    var a=$('nAuto');if(a){a.style.color='#15803d';a.innerHTML='✅ <b>Sent automatically</b> to +'+esc(r.to)+' on WhatsApp.';}
+    if(e){e.notified=true;e.via='Auto ('+((r.sent||[]).join('+'))+')';e.notifiedAt=new Date().toISOString();save('invoices',S.invoices);renderInvoices();}
+    var a=$('nAuto');if(a){a.style.color='#15803d';a.innerHTML='✅ <b>Sent automatically</b> to the owner via '+esc((r.sent||[]).join(' and '))+'.';}
   },function(err){
-    var a=$('nAuto');if(a){a.style.color='#b91c1c';a.textContent='Automatic WhatsApp failed ('+err.message+'). Use the buttons below to send it yourself.';}
+    var a=$('nAuto');if(a){a.style.color='#b91c1c';a.textContent='Automatic alert failed ('+err.message+'). Use the buttons below to send it yourself.';}
   });
 }
 function showCancel(no){
@@ -1080,8 +1079,10 @@ function saveSettingsForm(){
   var ok=!s.gstin||/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(s.gstin);
   toast(ok?'Settings saved.':'Settings saved. Note: the GSTIN does not look like a valid 15-character GSTIN.',!ok);
 }
+function findItem(){var v=($('mFind').value||'').trim().toLowerCase();if(!v){toast('Type the name of the item first.',true);return null;}var m=S.menu.filter(function(x){return x.name.toLowerCase()===v;})[0]||S.menu.filter(function(x){return x.name.toLowerCase().indexOf(v)>=0;})[0];if(!m)toast('No menu item matches "'+$('mFind').value+'".',true);return m||null;}
 function renderMenuList(){
   var cats={};S.menu.forEach(function(m){if(m.cat)cats[m.cat]=1;});
+  $('itemList').innerHTML=S.menu.map(function(m){return '<option value="'+esc(m.name)+'">';}).join('');
   $('catList').innerHTML=Object.keys(cats).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
 }
 function resetForm(){
@@ -1152,7 +1153,6 @@ var A={
     if(v==='invoices')renderInvoices();if(v==='reports')renderReport();if(v==='customers')renderCustomers();if(v==='settings'){fillSettings();renderMenuList();}
   },
   cat:function(t){S.cat=(S.cat===t.dataset.v)?'':t.dataset.v;renderMenu();},
-  manage:function(){S.manage=!S.manage;renderMenu();},
   add:function(t){
     var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(!m)return;
     var e=S.bill.filter(function(b){return b.id===m.id;})[0];
@@ -1235,7 +1235,9 @@ var A={
   deflogo:function(){S.settings.logo=DEFAULT_LOGO;save('settings',S.settings);fillSettings();},
   rmseal:function(){S.settings.seal='';save('settings',S.settings);fillSettings();},
   rmsign:function(){S.settings.sign='';save('settings',S.settings);fillSettings();},
-  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(!m)return;var nb=document.querySelector('#nav button[data-v=settings]');if(nb)A.tab(nb);loadForm(Object.assign({},m));},
+  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(m)loadForm(Object.assign({},m));},
+  findedit:function(){var m=findItem();if(m){loadForm(Object.assign({},m));$('mFind').value='';}},
+  finddel:function(){var m=findItem();if(m)A.delitem({dataset:{id:m.id}});},
   cancelitem:function(){resetForm();$('mCat').value='';},
   rmimg:function(){S.mImg='';setPrev('mPrev','');},
   saveitem:function(){
@@ -1283,7 +1285,8 @@ var A={
     toast('Imported: '+added+' new, '+updated+' updated.');
   },
   delitem:function(t){
-    if(!confirm('Delete this menu item?'))return;
+    var dm=S.menu.filter(function(m){return m.id===t.dataset.id;})[0];if(!confirm('Delete '+(dm?dm.name:'this item')+' from the menu?'))return;
+    if($('mFind'))$('mFind').value='';
     S.menu=S.menu.filter(function(m){return m.id!==t.dataset.id;});save('menu',S.menu);renderMenuList();renderMenu();syncMenuFile();
   },
   backup:function(){
@@ -1357,7 +1360,7 @@ async function boot(){
     try{await loadServerState();}catch(e){gate('<h2 style="margin-top:0">Cannot load data</h2><p class="muted">'+esc(e.message)+'</p><button class="btn pri" data-act="retry" style="width:100%">Try again</button>');return;}
   }
   init();
-  if(SERVER){S.wa=!!(d.info&&d.info.wa);startServerSync(d.info);}
+  if(SERVER){S.alerts=(d.info&&d.info.alerts)||[];S.wa=S.alerts.length>0;startServerSync(d.info);}
 }
 if(typeof document!=='undefined'&&document.getElementById('toast'))boot();
 })();

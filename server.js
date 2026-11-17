@@ -155,28 +155,35 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}\.(pdf|xlsx|csv)$/;
 
 
-/* ---------------- WhatsApp Cloud API (optional, automatic alerts) ---------------- */
-const WA_TOKEN = process.env.WA_TOKEN || '', WA_PHONE_ID = process.env.WA_PHONE_ID || '';
-const WA_TEMPLATE = process.env.WA_TEMPLATE || '', WA_LANG = process.env.WA_LANG || 'en';
-const WA_API = process.env.WA_API_BASE || 'https://graph.facebook.com/v21.0';
+/* ---------------- Free alert channels (optional): Telegram bot and CallMeBot WhatsApp ---------------- */
+const TG_TOKEN = process.env.TG_TOKEN || '', TG_CHAT = process.env.TG_CHAT || '';
+const CMB_KEY = process.env.CMB_KEY || '', CMB_PHONE = process.env.CMB_PHONE || '';
+const TG_API = process.env.TG_API_BASE || 'https://api.telegram.org', CMB_API = process.env.CMB_API_BASE || 'https://api.callmebot.com';
 function waNumber(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '0') d = d.slice(1); if (d.length === 10) d = '91' + d; return d.length >= 11 ? d : ''; }
-async function waSend(text) {
-  const to = waNumber(db.settings.alertPhone) || waNumber(db.settings.phone);
-  if (!to) throw new HttpError(400, 'No valid alert or hotel phone number in Settings');
-  const body = WA_TEMPLATE
-    ? { messaging_product: 'whatsapp', to, type: 'template', template: { name: WA_TEMPLATE, language: { code: WA_LANG }, components: [{ type: 'body', parameters: [{ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 900) }] }] } }
-    : { messaging_product: 'whatsapp', to, type: 'text', text: { body: text.slice(0, 1000) } };
-  const r = await fetch(WA_API + '/' + WA_PHONE_ID + '/messages', { method: 'POST', headers: { Authorization: 'Bearer ' + WA_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new HttpError(502, 'WhatsApp refused the message: ' + ((j.error && j.error.message) || r.status));
-  return { to, id: j.messages && j.messages[0] && j.messages[0].id };
+function alertChannels() { const c = []; if (TG_TOKEN && TG_CHAT) c.push('telegram'); if (CMB_KEY) c.push('whatsapp'); return c; }
+async function sendTelegram(text) {
+  const r = await fetch(TG_API + '/bot' + TG_TOKEN + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: TG_CHAT, text: text.slice(0, 3500) }), signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error('Telegram refused the message (' + r.status + ')');
+}
+async function sendCallMeBot(text) {
+  const to = waNumber(CMB_PHONE) || waNumber(db.settings.alertPhone) || waNumber(db.settings.phone);
+  if (!to) throw new Error('no valid phone number for WhatsApp');
+  const u = CMB_API + '/whatsapp.php?phone=' + encodeURIComponent('+' + to) + '&text=' + encodeURIComponent(text.slice(0, 1500)) + '&apikey=' + encodeURIComponent(CMB_KEY);
+  const r = await fetch(u, { signal: AbortSignal.timeout(20000) }); const t = await r.text();
+  if (!r.ok || /error/i.test(t)) throw new Error('CallMeBot refused the message');
+}
+async function sendAlerts(text) {
+  const jobs = []; if (alertChannels().includes('telegram')) jobs.push(['Telegram', sendTelegram]); if (alertChannels().includes('whatsapp')) jobs.push(['WhatsApp', sendCallMeBot]);
+  const sent = [], failed = [];
+  await Promise.all(jobs.map(async ([n, f]) => { try { await f(text); sent.push(n); } catch (e) { failed.push(n + ': ' + e.message); } }));
+  return { sent, failed };
 }
 
 /* ---------------- API ---------------- */
 const pad = (n, l) => String(n).padStart(l, '0');
 async function api(req, res, p, q) {
   const m = req.method;
-  if (p === '/api/ping' && m === 'GET') return send(res, 200, { qfb: 1, auth: !!PASSWORD, authed: validToken(cookies(req).qfb), wa: !!(WA_TOKEN && WA_PHONE_ID) });
+  if (p === '/api/ping' && m === 'GET') return send(res, 200, { qfb: 1, auth: !!PASSWORD, authed: validToken(cookies(req).qfb), alerts: alertChannels() });
   if (p === '/api/login' && m === 'POST') {
     const ip = clientIp(req); if (throttled(ip)) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
     const b = await readJsonBody(req);
@@ -190,9 +197,11 @@ async function api(req, res, p, q) {
   if (m !== 'GET' && req.headers['x-qfb'] !== '1') throw new HttpError(403, 'Missing header');
 
   if (p === '/api/notify' && m === 'POST') {
-    if (!(WA_TOKEN && WA_PHONE_ID)) throw new HttpError(501, 'Automatic WhatsApp is not set up on the server');
+    if (!alertChannels().length) throw new HttpError(501, 'No free alert channel is set up on the server');
     const b = await readJsonBody(req); if (typeof b.text !== 'string' || !b.text.trim()) throw bad('text required');
-    const r = await waSend(b.text); return send(res, 200, { ok: 1, to: r.to });
+    const r = await sendAlerts(b.text);
+    if (!r.sent.length) throw new HttpError(502, r.failed.join('; '));
+    return send(res, 200, { ok: 1, sent: r.sent, failed: r.failed });
   }
   if (p === '/api/rev' && m === 'GET') return send(res, 200, { rev: meta.rev });
   if (p === '/api/state' && m === 'GET') {
