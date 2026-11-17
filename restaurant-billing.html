@@ -144,6 +144,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
 <div id="gate"></div>
 <div id="billBar" data-act="tobill"><span id="billBarTxt"></span><span>View bill ▸</span></div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
+<div id="libWarn" style="display:none;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:10px 14px;margin:8px 12px;border-radius:8px"><b>PDF and Excel tools did not load.</b> Invoices cannot be created or downloaded until they do. They are fetched from the internet (cdnjs.cloudflare.com), so check your connection, an ad blocker or a company firewall, then reload. Or use the offline file <b>restaurant-billing-offline.html</b>.</div>
 <main>
 <!-- BILLING -->
 <section id="t-billing" class="on">
@@ -1071,7 +1072,8 @@ function fillSettings(){
   $('sCompany').value=s.company;$('sGstin').value=s.gstin;$('sAddress').value=s.address;$('sPhone').value=s.phone;$('sAlert').value=s.alertPhone||'';$('sSumPrefix').value=s.sumPrefix;$('sSumNext').value=s.sumNext;$('sEmail').value=s.email;$('sFssai').value=s.fssai;
   $('sState').value=s.state;$('sPrefix').value=s.prefix;$('sNext').value=s.nextNo;$('sPaper').value=s.paper;$('sDefGst').value=s.defGst;$('sIncl').checked=!!s.inclusive;
   if(SERVER){$('folderName').textContent='the server (automatic)';$('pickBtnBox').style.display='none';$('folderHelp').innerHTML='PDFs and the master Excel files are saved on the server automatically, so every device sees the same files. <a href="/files" target="_blank" rel="noopener">Open saved files</a>';}
-  else $('folderName').textContent=s.folderName||'not chosen (downloads folder will be used)';
+  else{$('folderName').textContent=s.folderName||'not chosen (downloads folder will be used)';
+    if(typeof window!=='undefined'&&!window.showDirectoryPicker)$('folderHelp').innerHTML='<b style="color:#b91c1c">This browser cannot pick a folder.</b> Open the app in Chrome or Edge on a computer (not Firefox, Safari or a phone browser). Until then, every PDF goes to your Downloads folder.';}
   setPrev('logoPrev',s.logo);setPrev('sealPrev',s.seal);setPrev('signPrev',s.sign);
   $('paper').value=s.paper;if($('mGst'))$('mGst').placeholder='Default '+s.defGst+'%';$('coName').textContent=s.company||'Restaurant Billing';
 }
@@ -1311,6 +1313,7 @@ function bindClicks(){
   document.addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;var f=A[t.dataset.act];if(f)f(t,e);});
 }
 function init(){
+  if($('libWarn')&&(typeof window.jspdf==='undefined'||typeof window.XLSX==='undefined'))$('libWarn').style.display='block';
   bindClicks();
   $('q').addEventListener('input',function(){S.q=this.value;renderMenu();});
   $('cName').addEventListener('change',function(){
