@@ -3,9 +3,10 @@
 const { spawn } = require('child_process'), fs = require('fs'), os = require('os'), path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom'); const { jsPDF } = require('jspdf'); const XLSX = require('xlsx');
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qfbe-')), PORT = 3900 + Math.floor(Math.random() * 90), BASE = 'http://127.0.0.1:' + PORT;
-let proc, fails = 0; const sleep = ms => new Promise(r => setTimeout(r, ms));
+let proc, fails = 0; const WAP = PORT + 1000, waGot = []; const http = require('http');
+const mock = http.createServer((q, r) => { let b = ''; q.on('data', c => b += c); q.on('end', () => { waGot.push({ url: q.url, auth: q.headers.authorization, body: JSON.parse(b) }); r.setHeader('content-type', 'application/json'); r.end(JSON.stringify({ messages: [{ id: 'wamid.X' }] })); }); }); mock.listen(WAP); const sleep = ms => new Promise(r => setTimeout(r, ms));
 const ok = (c, m) => { console.log(c ? 'ok  ' : 'FAIL', m); if (!c) fails++; };
-const start = () => new Promise((res, rej) => { proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: Object.assign({}, process.env, { PORT, QFB_PASSWORD: 'pw123', DATA_DIR: DIR, HOST: '127.0.0.1' }) }); proc.stdout.on('data', d => /listening/.test(d) && res()); proc.stderr.on('data', d => process.stderr.write(d)); });
+const start = () => new Promise((res, rej) => { proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: Object.assign({}, process.env, { PORT, QFB_PASSWORD: 'pw123', WA_TOKEN: 'tok', WA_PHONE_ID: '555', WA_API_BASE: 'http://127.0.0.1:' + WAP, DATA_DIR: DIR, HOST: '127.0.0.1' }) }); proc.stdout.on('data', d => /listening/.test(d) && res()); proc.stderr.on('data', d => process.stderr.write(d)); });
 const stop = () => new Promise(r => { proc.removeAllListeners('exit'); proc.on('exit', r); proc.kill('SIGTERM'); });
 
 async function device(name, pollMs) {
@@ -47,6 +48,8 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   ok([A, B].every(x => x.tiles().length === 8 && x.$('gate').className === ''), 'after sign-in both devices load the shared menu (8 items)');
   ok(/Shared data/.test(A.$('srvStat').textContent), 'status shows "Shared data"');
 
+  await api('/api/settings', { method: 'PATCH', headers: { 'x-qfb': '1', cookie: global.CK, 'content-type': 'application/json' }, body: JSON.stringify({ patch: { alertPhone: '98765 43210' } }) });
+  ok(await B.until(() => B.S().settings.alertPhone === '98765 43210'), 'alert number set in Settings reaches the devices');
   // menu added on A shows on B and C
   A.$('mName').value = 'Lassi'; A.$('mPrice').value = '45'; A.click(A.d.querySelector('[data-act=saveitem]'));
   ok(await B.until(() => B.tiles().some(t => /Lassi/.test(t.textContent))), 'menu item added on device A appears on device B within seconds');
@@ -65,7 +68,11 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   const acme = B.invRows().find(r => /Acme/.test(r.textContent)); B.click(acme.querySelector('[data-act=invedit]'));
   B.$('eReason').value = 'Added extra'; B.click(B.tiles().find(t => /Butter Naan/.test(t.textContent))); B.click(B.d.querySelector('[data-act=gen]:not([data-print])'));
   ok(await A.until(() => A.S().invoices.find(i => i.customer.name === 'Acme Corp').edited === true), 'an edit made on device B shows on device A');
-  const edA = A.S().invoices.find(i => i.customer.name === 'Acme Corp'); ok(edA.history.length === 1 && edA._v === 2, 'edit history and version came across');
+  const edA = A.S().invoices.find(i => i.customer.name === 'Acme Corp'); ok(edA.history.length === 1 && edA._v >= 2, 'edit history and version came across');
+  ok(await B.until(() => /Sent automatically/.test(B.$('modalBox').textContent)), 'after an edit the owner is messaged on WhatsApp automatically (no buttons to press)');
+  ok(waGot.length === 1 && waGot[0].url === '/555/messages' && waGot[0].auth === 'Bearer tok' && waGot[0].body.type === 'text' && /BILL CHANGE ALERT/.test(waGot[0].body.text.body) && /Added extra/.test(waGot[0].body.text.body), 'WhatsApp API received the alert text with the reason');
+  ok(/^91\d{10}$/.test(waGot[0].body.to), 'sent to the hotel/alert number from Settings, normalised with 91');
+  ok(await A.until(() => { const h = A.S().invoices.find(i => i.customer.name === 'Acme Corp').history; return h[0].notified && h[0].via === 'WhatsApp (auto)'; }), 'the change is marked as notified on every device');
   B.click(B.d.querySelector('[data-act=notifyclose]'));
 
   // stale device C tries to edit the same bill
@@ -74,8 +81,8 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   C.click(C.d.querySelector('[data-act=invedit][data-no="' + staleBefore.no + '"]')); C.$('eReason').value = 'From stale device'; C.click(C.d.querySelector('[data-act=gen]:not([data-print])'));
   let seen=[];const t0=C.w.document.getElementById('toast');new C.w.MutationObserver(()=>seen.push(t0.textContent)).observe(t0,{childList:true,characterData:true,subtree:true,attributes:true});
   ok(await C.until(() => /changed on another device/.test(C.$('toast').textContent)||seen.some(x=>/another device/.test(x))), 'stale edit is refused and the user is told the bill changed on another device');
-  await C.until(() => C.S().invoices.find(i => i.no === staleBefore.no)._v === 2);
-  st = await api('/api/state'); ok(st.invoices.find(i => i.no === staleBefore.no)._v === 2 && !(st.invoices.find(i => i.no === staleBefore.no).history || []).some(h => h.reason === 'From stale device'), 'the server kept the first edit; the stale one was not applied');
+  await C.until(() => C.S().invoices.find(i => i.no === staleBefore.no)._v >= 2);
+  st = await api('/api/state'); ok(st.invoices.find(i => i.no === staleBefore.no)._v >= 2 && !(st.invoices.find(i => i.no === staleBefore.no).history || []).some(h => h.reason === 'From stale device'), 'the server kept the first edit; the stale one was not applied');
   C.click(C.d.querySelector('[data-act=notifyclose]'));
 
   // cancel on A visible on B
@@ -107,6 +114,6 @@ const api = async (p, o = {}) => { const r = await fetch(BASE + p, Object.assign
   st = await api('/api/state'); ok(st.invoices.map(i => i.no).sort().join() === 'INV-0001,INV-0002,INV-0003', 'numbering continues without duplicates (INV-0003)');
 
   const errs = [A, B, C].flatMap(x => x.errors); ok(errs.length === 0, 'no JavaScript errors on any device' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
-  await stop(); fs.rmSync(DIR, { recursive: true, force: true });
+  mock.close(); await stop(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(fails ? '\n' + fails + ' CHECK(S) FAILED' : '\nALL END-TO-END CHECKS PASSED'); process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); try { proc.kill(); } catch (x) {} process.exit(1); });

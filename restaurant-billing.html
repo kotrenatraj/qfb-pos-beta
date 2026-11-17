@@ -45,6 +45,7 @@ button{font-family:inherit}
 .chip.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;max-height:62vh;overflow-y:auto}
 .tile{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;user-select:none}
+.tile{position:relative}.tdel{position:absolute;top:4px;right:4px;z-index:2;background:#b91c1c;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:.8rem}
 .tile:active{transform:scale(.97)}
 .tile:hover{border-color:#1d4ed8}
 .tile img,.tile .ph{width:100%;height:64px;object-fit:cover;display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700}
@@ -149,7 +150,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
 <section id="t-billing" class="on">
   <div class="split">
     <div class="card">
-      <input id="q" type="search" placeholder="Search menu…">
+      <div class="row" style="flex-wrap:nowrap;align-items:center;margin-bottom:8px"><input id="q" type="search" placeholder="Search menu…" style="flex:1;margin:0"><button class="chip" id="manBtn" data-act="manage" title="Edit or delete menu items">✏️ Edit items</button></div>
       <div id="cats" class="chips"></div>
       <div id="menuGrid" class="grid"></div>
     </div>
@@ -314,8 +315,7 @@ a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box
       <input id="mFile" type="file" accept=".xlsx,.xls,.csv" style="display:none">
       <div id="impPrev"></div>
 
-      <div style="display:flex;gap:8px;align-items:center;margin:12px 0 6px"><input id="mSearch" placeholder="Search menu…" style="flex:1"><span id="mCount" class="muted"></span></div>
-      <div id="mList" class="mlist"></div>
+      <p class="muted" style="margin:10px 0 0">New items appear in <b>Billing</b> straight away. To change or delete an item, use <b>✏️ Edit items</b> on the Billing screen.</p>
     </div>
 
     <div class="card">
@@ -360,7 +360,7 @@ var S={
   settings:Object.assign(defaultSettings(),load('settings',{})),
   menu:load('menu',null),
   invoices:load('invoices',[]),
-  summaries:load('summaries',[]),bill:[],chg:null,cat:'All',q:'',edit:null,mImg:'',imp:null
+  summaries:load('summaries',[]),bill:[],chg:null,cat:'',q:'',manage:false,edit:null,mImg:'',imp:null
 };
 if(!S.menu){S.menu=sample();try{localStorage.setItem('rb_menu',JSON.stringify(S.menu));}catch(e){}}
 /* ---------- shared-server mode (used when the app is opened from the QFB POS server) ---------- */
@@ -836,13 +836,23 @@ async function migrateImages(){
 /* ---------- rendering: billing ---------- */
 function colorFor(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return 'hsl('+h+',55%,45%)';}
 function tile(it){return it.img?'<img src="'+it.img+'" alt="">':'<div class="ph" style="background:'+colorFor(it.name)+'">'+esc((it.name||'?').charAt(0).toUpperCase())+'</div>';}
+var TOP_N=12;
+function topItems(){
+  var sold={};S.invoices.forEach(function(v){if(v.status==='cancelled')return;(v.items||[]).forEach(function(it){sold[it.name]=(sold[it.name]||0)+(+it.qty||0);});});
+  return S.menu.map(function(m,i){return {m:m,n:sold[m.name]||0,i:i};}).sort(function(a,b){return b.n-a.n||a.i-b.i;}).slice(0,TOP_N).map(function(x){return x.m;});
+}
 function renderMenu(){
-  var cats=['All'];S.menu.forEach(function(m){if(m.cat&&cats.indexOf(m.cat)<0)cats.push(m.cat);});
-  if(cats.indexOf(S.cat)<0)S.cat='All';
+  var cats=[];S.menu.forEach(function(m){if(m.cat&&cats.indexOf(m.cat)<0)cats.push(m.cat);});
+  if(S.cat&&cats.indexOf(S.cat)<0)S.cat='';
   $('cats').innerHTML=cats.map(function(c){return '<button class="chip'+(c===S.cat?' on':'')+'" data-act="cat" data-v="'+esc(c)+'">'+esc(c)+'</button>';}).join('');
-  var q=S.q.toLowerCase();
-  var list=S.menu.filter(function(m){return (S.cat==='All'||m.cat===S.cat)&&(!q||m.name.toLowerCase().indexOf(q)>=0);});
-  $('menuGrid').innerHTML=list.length?list.map(function(m){return '<div class="tile" data-act="add" data-id="'+m.id+'">'+tile(m)+'<div class="tn">'+esc(m.name)+'</div><div class="tp">₹'+money(m.price)+'</div></div>';}).join(''):'<p class="muted">No items found. Add menu items in Settings.</p>';
+  $('cats').style.display=cats.length?'':'none';
+  $('manBtn').className='chip'+(S.manage?' on':'');$('manBtn').textContent=S.manage?'✔ Done':'✏️ Edit items';
+  var q=S.q.toLowerCase().trim(),list;
+  if(q)list=S.menu.filter(function(m){return (m.name+' '+(m.cat||'')).toLowerCase().indexOf(q)>=0;});
+  else if(S.cat)list=S.menu.filter(function(m){return m.cat===S.cat;});
+  else list=topItems();
+  var hint=(!q&&!S.cat&&S.menu.length>list.length)?'<p class="muted" style="grid-column:1/-1;margin:0">Showing top items. Tap a category above, or search, to see the rest.</p>':'';
+  $('menuGrid').innerHTML=list.length?hint+list.map(function(m){return '<div class="tile" data-act="'+(S.manage?'edititem':'add')+'" data-id="'+m.id+'">'+(S.manage?'<span class="tdel" data-act="delitem" data-id="'+m.id+'">✕</span>':'')+tile(m)+'<div class="tn">'+esc(m.name)+'</div><div class="tp">₹'+money(m.price)+'</div></div>';}).join(''):'<p class="muted">No items found. Add menu items in Settings.</p>';
 }
 function renderBill(){
   var c=calc(S.bill,S.chg?S.chg.inclusive:S.settings.inclusive);
@@ -933,7 +943,18 @@ function showNotify(no){
       '<a class="btn pri" id="nSms" href="sms:+'+num+'?body='+enc+'" data-act="notified" data-via="SMS" data-no="'+esc(no)+'">SMS</a></div>';
   }else h+='<p class="muted" style="color:#b91c1c">No valid phone number in Settings (Phone or Alert number). Add one so this can be sent; you can still copy the message.</p>';
   h+='<div class="btns"><button class="btn" data-act="copymsg" data-no="'+esc(no)+'">Copy message</button><button class="btn" data-act="notifyclose">Close</button></div>';
+  if(SERVER&&S.wa&&num&&!e.notified)h=h.replace('<textarea','<p id="nAuto" class="muted" style="margin:0 0 8px">⏳ Sending to the owner on WhatsApp…</p><textarea');
   $('modalBox').innerHTML=h;$('modal').className='show';
+  if(SERVER&&S.wa&&num&&!e.notified)autoNotify(no,msg);
+}
+function autoNotify(no,msg){
+  apiRaw('POST','/api/notify',{text:msg}).then(function(r){
+    var inv=findInv(no),e=inv&&lastChange(inv);
+    if(e){e.notified=true;e.via='WhatsApp (auto)';e.notifiedAt=new Date().toISOString();save('invoices',S.invoices);renderInvoices();}
+    var a=$('nAuto');if(a){a.style.color='#15803d';a.innerHTML='✅ <b>Sent automatically</b> to +'+esc(r.to)+' on WhatsApp.';}
+  },function(err){
+    var a=$('nAuto');if(a){a.style.color='#b91c1c';a.textContent='Automatic WhatsApp failed ('+err.message+'). Use the buttons below to send it yourself.';}
+  });
 }
 function showCancel(no){
   var inv=findInv(no);if(!inv)return;
@@ -1062,12 +1083,6 @@ function saveSettingsForm(){
 function renderMenuList(){
   var cats={};S.menu.forEach(function(m){if(m.cat)cats[m.cat]=1;});
   $('catList').innerHTML=Object.keys(cats).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
-  var q=($('mSearch').value||'').trim().toLowerCase();
-  var list=S.menu.filter(function(m){return !q||(m.name+' '+(m.cat||'')).toLowerCase().indexOf(q)>-1;});
-  $('mCount').textContent=q?list.length+' of '+S.menu.length:S.menu.length+' items';
-  $('mList').innerHTML=list.length?list.map(function(m){
-    return '<div class="ml"><div class="t">'+tile(m)+'</div><div class="i"><b>'+esc(m.name)+'</b><small>'+esc(m.cat||'')+(m.cat?' · ':'')+'GST '+m.gst+'%</small></div><span class="p">₹'+money(m.price)+'</span><button class="btn sm" data-act="edititem" data-id="'+m.id+'" title="Edit">Edit</button><button class="btn sm bad" data-act="delitem" data-id="'+m.id+'" title="Delete">✕</button></div>';
-  }).join(''):'<p class="muted" style="padding:8px">'+(S.menu.length?'No match.':'No menu items yet.')+'</p>';
 }
 function resetForm(){
   S.edit=null;S.mImg='';
@@ -1136,7 +1151,8 @@ var A={
     var v=t.dataset.v;if($('billBar')){var on=v==='billing'&&S.bill.length;$('billBar').className=on?'show':'';document.body.className=on?'hasbar':'';}
     if(v==='invoices')renderInvoices();if(v==='reports')renderReport();if(v==='customers')renderCustomers();if(v==='settings'){fillSettings();renderMenuList();}
   },
-  cat:function(t){S.cat=t.dataset.v;renderMenu();},
+  cat:function(t){S.cat=(S.cat===t.dataset.v)?'':t.dataset.v;renderMenu();},
+  manage:function(){S.manage=!S.manage;renderMenu();},
   add:function(t){
     var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(!m)return;
     var e=S.bill.filter(function(b){return b.id===m.id;})[0];
@@ -1219,7 +1235,7 @@ var A={
   deflogo:function(){S.settings.logo=DEFAULT_LOGO;save('settings',S.settings);fillSettings();},
   rmseal:function(){S.settings.seal='';save('settings',S.settings);fillSettings();},
   rmsign:function(){S.settings.sign='';save('settings',S.settings);fillSettings();},
-  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(m)loadForm(Object.assign({},m));},
+  edititem:function(t){var m=S.menu.filter(function(x){return x.id===t.dataset.id;})[0];if(!m)return;var nb=document.querySelector('#nav button[data-v=settings]');if(nb)A.tab(nb);loadForm(Object.assign({},m));},
   cancelitem:function(){resetForm();$('mCat').value='';},
   rmimg:function(){S.mImg='';setPrev('mPrev','');},
   saveitem:function(){
@@ -1297,7 +1313,6 @@ function init(){
   $('sealFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.seal=await imgData(this.files[0],240,240,'clean');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
   $('signFile').addEventListener('change',async function(){if(this.files[0]){try{S.settings.sign=await imgData(this.files[0],300,120,'clean');save('settings',S.settings);fillSettings();}catch(e){toast('Could not read image.',true);}}});
   $('mImg').addEventListener('change',async function(){if(this.files[0]){try{S.mImg=await imgData(this.files[0],240,180,'cover');setPrev('mPrev',S.mImg);}catch(e){toast('Could not read image.',true);}}});
-  $('mSearch').addEventListener('input',renderMenuList);
   $('mName').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if($('mPrice').value==='')$('mPrice').focus();else A.saveitem();}});
   $('mPrice').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();A.saveitem();}});
   $('mFile').addEventListener('change',function(){
@@ -1342,7 +1357,7 @@ async function boot(){
     try{await loadServerState();}catch(e){gate('<h2 style="margin-top:0">Cannot load data</h2><p class="muted">'+esc(e.message)+'</p><button class="btn pri" data-act="retry" style="width:100%">Try again</button>');return;}
   }
   init();
-  if(SERVER)startServerSync(d.info);
+  if(SERVER){S.wa=!!(d.info&&d.info.wa);startServerSync(d.info);}
 }
 if(typeof document!=='undefined'&&document.getElementById('toast'))boot();
 })();

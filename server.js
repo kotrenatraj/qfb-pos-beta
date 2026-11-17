@@ -154,11 +154,29 @@ const MIME = { '.pdf': 'application/pdf', '.xlsx': 'application/vnd.openxmlforma
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}\.(pdf|xlsx|csv)$/;
 
+
+/* ---------------- WhatsApp Cloud API (optional, automatic alerts) ---------------- */
+const WA_TOKEN = process.env.WA_TOKEN || '', WA_PHONE_ID = process.env.WA_PHONE_ID || '';
+const WA_TEMPLATE = process.env.WA_TEMPLATE || '', WA_LANG = process.env.WA_LANG || 'en';
+const WA_API = process.env.WA_API_BASE || 'https://graph.facebook.com/v21.0';
+function waNumber(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '0') d = d.slice(1); if (d.length === 10) d = '91' + d; return d.length >= 11 ? d : ''; }
+async function waSend(text) {
+  const to = waNumber(db.settings.alertPhone) || waNumber(db.settings.phone);
+  if (!to) throw new HttpError(400, 'No valid alert or hotel phone number in Settings');
+  const body = WA_TEMPLATE
+    ? { messaging_product: 'whatsapp', to, type: 'template', template: { name: WA_TEMPLATE, language: { code: WA_LANG }, components: [{ type: 'body', parameters: [{ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 900) }] }] } }
+    : { messaging_product: 'whatsapp', to, type: 'text', text: { body: text.slice(0, 1000) } };
+  const r = await fetch(WA_API + '/' + WA_PHONE_ID + '/messages', { method: 'POST', headers: { Authorization: 'Bearer ' + WA_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new HttpError(502, 'WhatsApp refused the message: ' + ((j.error && j.error.message) || r.status));
+  return { to, id: j.messages && j.messages[0] && j.messages[0].id };
+}
+
 /* ---------------- API ---------------- */
 const pad = (n, l) => String(n).padStart(l, '0');
 async function api(req, res, p, q) {
   const m = req.method;
-  if (p === '/api/ping' && m === 'GET') return send(res, 200, { qfb: 1, auth: !!PASSWORD, authed: validToken(cookies(req).qfb) });
+  if (p === '/api/ping' && m === 'GET') return send(res, 200, { qfb: 1, auth: !!PASSWORD, authed: validToken(cookies(req).qfb), wa: !!(WA_TOKEN && WA_PHONE_ID) });
   if (p === '/api/login' && m === 'POST') {
     const ip = clientIp(req); if (throttled(ip)) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
     const b = await readJsonBody(req);
@@ -171,6 +189,11 @@ async function api(req, res, p, q) {
   if (!validToken(cookies(req).qfb)) throw new HttpError(401, 'Login required');
   if (m !== 'GET' && req.headers['x-qfb'] !== '1') throw new HttpError(403, 'Missing header');
 
+  if (p === '/api/notify' && m === 'POST') {
+    if (!(WA_TOKEN && WA_PHONE_ID)) throw new HttpError(501, 'Automatic WhatsApp is not set up on the server');
+    const b = await readJsonBody(req); if (typeof b.text !== 'string' || !b.text.trim()) throw bad('text required');
+    const r = await waSend(b.text); return send(res, 200, { ok: 1, to: r.to });
+  }
   if (p === '/api/rev' && m === 'GET') return send(res, 200, { rev: meta.rev });
   if (p === '/api/state' && m === 'GET') {
     const body = Buffer.from(JSON.stringify({ rev: meta.rev, settings: db.settings, menu: db.menu, invoices: db.invoices, summaries: db.summaries }));
